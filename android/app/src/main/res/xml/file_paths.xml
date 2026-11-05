@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Rutas que el FileProvider puede compartir: solo el propio APK de la app
+  (que vive en /data/app/...) y la copia de respaldo en caché. No se expone
+  nada más del almacenamiento del teléfono.
+-->
+<paths>
+    <root-path name="apk" path="/data/app" />
+    <cache-path name="cache" path="." />
+</paths>
