@@ -221,6 +221,11 @@ flutter build apk --release
 APK listo para instalar: **`dist/SinRed-0.5.0.apk`** (65 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
+
+Descarga directa sin compilar nada:
+[**SinRed-0.5.0.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.0/SinRed-0.5.0.apk)
+(la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
+SHA-256: `c48bd362a5153066b0ae8b433fc9e62696ad3156e718a74b00a9d4cc8cdc5e86`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
