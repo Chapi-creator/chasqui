@@ -21,9 +21,9 @@ enum FrameType {
   final int code;
 
   static FrameType fromCode(int code) => FrameType.values.firstWhere(
-        (t) => t.code == code,
-        orElse: () => throw FormatException('Tipo de trama desconocido: $code'),
-      );
+    (t) => t.code == code,
+    orElse: () => throw FormatException('Tipo de trama desconocido: $code'),
+  );
 }
 
 /// Trama de malla, formato binario compacto para que quepa en un solo paquete
@@ -89,15 +89,32 @@ class MeshFrame {
   }
 
   MeshFrame forwarded() => MeshFrame(
-        type: type,
-        id: id,
-        source: source,
-        destination: destination,
-        timestamp: timestamp,
-        payload: payload,
-        ttl: ttl - 1,
-        hops: hops + 1,
-      );
+    type: type,
+    id: id,
+    source: source,
+    destination: destination,
+    timestamp: timestamp,
+    payload: payload,
+    ttl: ttl - 1,
+    hops: hops + 1,
+  );
+
+  /// Copia con otro TTL, sin tocar nada más.
+  ///
+  /// Se usa para acarrear una trama (mensajero): el que la lleva un rato en el
+  /// bolsillo la reemite con saltos de nuevo, o el vecino la descartaría por
+  /// venir agotada. TTL y saltos no van dentro de lo autenticado, así que ni el
+  /// cifrado ni la comprobación de origen se enteran.
+  MeshFrame refreshed(int ttl) => MeshFrame(
+    type: type,
+    id: id,
+    source: source,
+    destination: destination,
+    timestamp: timestamp,
+    payload: payload,
+    ttl: ttl,
+    hops: hops,
+  );
 
   Uint8List encode() {
     final out = Uint8List(headerLength + payload.length);

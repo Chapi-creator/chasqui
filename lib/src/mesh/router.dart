@@ -61,11 +61,19 @@ class MeshRouter {
   final Outbox outbox;
   final Map<String, PeerRecord> peers = <String, PeerRecord>{};
 
-  static const int defaultTtl = 3;
+  /// Saltos que puede dar un chat privado antes de quedarse guardado.
+  ///
+  /// Con 3 saltos, una cadena de 4 teléfonos ya no pasaba: el mensaje moría a
+  /// media calle. Además, al agotarse los saltos ya no se tira la trama: la
+  /// guarda [Outbox] y la vuelve a soltar cuando encuentra a alguien (mensajero).
+  static const int defaultTtl = 5;
 
   /// El canal abierto vive más saltos que un chat privado: en una catástrofe
   /// interesa que un aviso cruce toda la cadena disponible, no solo el vecino.
-  static const int channelTtl = 5;
+  static const int channelTtl = 7;
+
+  /// Saltos con los que se reemite una trama acarreada al encontrar un nodo.
+  static const int carryTtl = 2;
 
   SimplePublicKey publicKeyOf(PeerRecord peer) =>
       SimplePublicKey(peer.publicKey, type: KeyPairType.x25519);
@@ -180,7 +188,8 @@ class MeshRouter {
     destination: Uint8List.fromList(original.source),
     timestamp: DateTime.now().millisecondsSinceEpoch,
     payload: Uint8List.fromList(original.id),
-    ttl: 4,
+    // Un ACK tiene que llegar tan lejos como el mensaje que confirma.
+    ttl: defaultTtl,
   );
 
   /// Procesa un paquete recibido por [linkId].
@@ -255,6 +264,9 @@ class MeshRouter {
       relayed += 1;
       outbox.enqueueRelay(frame.forwarded());
       await broadcast(frame.forwarded(), exceptLink: linkId);
+    } else {
+      // Sin saltos, se guarda para el siguiente que pase (mensajero).
+      outbox.enqueueRelay(frame);
     }
   }
 
@@ -308,11 +320,16 @@ class MeshRouter {
       return;
     }
 
-    // Vamos de repetidor.
+    // Vamos de repetidor. Si ya no quedan saltos, la trama no se tira: se
+    // queda en el bolsillo hasta que aparezca otro teléfono (mensajero). Así un
+    // mensaje puede cruzar un pueblo entero en dos viajes, sin repetidores
+    // fijos ni internet.
     if (frame.ttl > 1) {
       relayed += 1;
       outbox.enqueueRelay(frame.forwarded());
       await broadcast(frame.forwarded(), exceptLink: linkId);
+    } else {
+      outbox.enqueueRelay(frame);
     }
   }
 
@@ -347,6 +364,8 @@ class MeshRouter {
       relayed += 1;
       outbox.enqueueRelay(frame.forwarded());
       await broadcast(frame.forwarded(), exceptLink: linkId);
+    } else {
+      outbox.enqueueRelay(frame);
     }
   }
 
@@ -367,7 +386,11 @@ class MeshRouter {
   /// Reenvía lo pendiente cuando aparece un enlace nuevo.
   Future<void> flushOnNewLink() async {
     for (final frame in outbox.relayFrames) {
-      await broadcast(frame);
+      // Las acarreadas se reemiten con saltos frescos: si salieran con el TTL
+      // que traían (0 o 1), el vecino las daría por agotadas y el acarreo no
+      // serviría de nada. Las que aún tenían saltos conservan los suyos.
+      final ttl = frame.ttl > carryTtl ? frame.ttl : carryTtl;
+      await broadcast(frame.refreshed(ttl));
     }
     for (final entry in outbox.ownPending) {
       await broadcast(entry.frame);

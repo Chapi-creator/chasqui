@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../core/app_version.dart';
 import '../mesh/mesh_node.dart';
 import '../platform/app_share.dart';
 import '../platform/location_service.dart';
@@ -334,7 +335,7 @@ class SettingsPage extends StatelessWidget {
         const SizedBox(height: 18),
         Center(
           child: Text(
-            'SinRed 0.5.1 · malla BLE sin internet',
+            'SinRed $appVersion · malla BLE sin internet',
             style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
           ),
         ),

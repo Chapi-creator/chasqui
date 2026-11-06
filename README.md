@@ -71,14 +71,35 @@ Esto es importante antes de instalar:
 
 | Pregunta | Respuesta honesta |
 |---|---|
-| ¿Alcance por salto? | **10–100 m** según obstáculos (paredes, bolsillos, lluvia). |
-| ¿"Largas distancias"? | Solo **en cadena**: A → B → C. Cada teléfono intermedio suma ~30–80 m reales. |
-| ¿Kilómetros sin repetidores? | **No.** Eso requiere LoRa (1–10 km por salto), que este MVP no incluye. |
-| ¿Sin nadie cerca? | No hay red. El mensaje espera en la cola 24 h. |
+| ¿Alcance por salto? | **10–30 m** en interior con paredes; **hasta 100 m** a la vista y sin obstáculos. |
+| ¿Se puede ampliar por software? | Solo con dos palancas: **más saltos** (cadena de teléfonos) y **mensajero** (alguien se lleva la trama y la suelta más lejos). La distancia de un salto la fija la radio: ningún código la estira. |
+| ¿"Largas distancias"? | Solo **en cadena**: A → B → C. Cada teléfono intermedio suma ~30–80 m reales, hasta **5 saltos** (7 en el canal abierto) por tramo. |
+| ¿Y si no hay nadie en medio? | **Mensajero**: un teléfono con la app recoge el mensaje aunque ya no le queden saltos, camina, y lo suelta al encontrar gente. Ahí el tramo vuelve a empezar. |
+| ¿Kilómetros sin repetidores? | **No.** Eso requiere LoRa (1–10 km por salto) o un PHY de largo alcance, que este APK no trae. |
+| ¿Sin nadie cerca? | No hay red en ese instante. El mensaje espera en la cola **24 h** y sale al aparecer alguien. |
 | ¿Funciona sin abrir la app? | Sí, con el servicio en primer plano activo (notificación permanente). |
 
 BitChat tiene exactamente la misma limitación física: BLE no llega más lejos.
 La diferencia aquí es el presupuesto de radio, que hace que aguante todo el día.
+
+### Cómo estirar el alcance de verdad
+
+1. **Saca el teléfono del bolsillo.** El cuerpo se come 10–20 dB: llevarlo en la
+   mano o colgado del pecho puede duplicar la distancia útil. En el bolsillo del
+   pantalón, con el cuerpo entre los dos equipos, el enlace cae a la mitad.
+2. **Altura y línea de vista.** Un segundo piso, una ventana o una loma valen
+   más que cualquier ajuste: 2,4 GHz atraviesa mal paredes, chapa y tierra.
+3. **Cadena**: cada teléfono con la app abierta (o con el servicio activo) suma
+   un salto. Los privados aguantan 5; el canal "Todos" y el SOS, 7.
+4. **Modo repetidor** (Ajustes): un teléfono viejo enchufado en la ventana
+   escucha casi todo el tiempo en vez de abrir ventanas cortas. Es el nodo que
+   más alcance aporta por vatio.
+5. **Mensajero**: quien va de un pueblo a otro lleva encima lo que recogió y lo
+   suelta al llegar, aunque el mensaje ya hubiera gastado sus saltos. Lo
+   acarreado se guarda en disco: un apagón no lo borra (caduca a las 24 h).
+6. **No hay ajuste de potencia**: Android no permite subir la potencia de
+   emisión de BLE sin root, y el PHY de largo alcance (LE Coded) no lo expone la
+   librería que usa la app. Para kilómetros hace falta hardware LoRa.
 
 ## 3. Cómo funciona
 
@@ -95,7 +116,8 @@ UI (Flutter)  →  MeshNode  →  MeshRouter  →  MeshTransport  →  BLE
 
 Cabecera binaria de 47 bytes: magic, versión, tipo (mensaje/ack/presencia/
 ubicación), id de 16 bytes, origen (8), destino (8), timestamp, TTL y saltos. El
-payload va cifrado. TTL inicial 3; cada reenvío resta 1 y suma un salto.
+payload va cifrado. TTL inicial 5 (7 en el canal abierto); cada reenvío resta 1
+y suma un salto. Al llegar a 1 la trama no se tira: se guarda para el mensajero.
 
 Las tramas de **ubicación** llevan 18 bytes cifrados: latitud y longitud a 1e7,
 precisión en metros y hora. Se mandan a un contacto concreto, igual que un
@@ -109,11 +131,13 @@ destino o el TTL, el mensaje no descifra.
 
 Inundación epidémica controlada:
 
-1. Se ignora lo propio y lo ya visto (`DedupCache`, 4096 entradas / 12 h).
+1. Se ignora lo propio y lo ya visto (`DedupCache`, 8.192 entradas / 48 h).
 2. Si el destino soy yo: descifro, entrego y devuelvo un **ACK**.
 3. Si no: reenvío una sola vez (TTL−1) y guardo copia para el próximo enlace.
+4. Si ya no quedan saltos: **no se tira**, se guarda para el mensajero y se
+   reemite con 2 saltos frescos al aparecer un nodo (hasta 24 h después).
 
-El ACK viaja con TTL 4 y es la única prueba de entrega; al recibirlo el mensaje
+El ACK viaja con TTL 5 y es la única prueba de entrega; al recibirlo el mensaje
 sale de la cola y pasa a "entregado".
 
 ### Cola de salida (`lib/src/mesh/outbox.dart`)
@@ -218,14 +242,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.5.1.apk`** (65 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.5.2.apk`** (65 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.5.1.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.1/SinRed-0.5.1.apk)
+[**SinRed-0.5.2.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.2/SinRed-0.5.2.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `50875fd24c98e3d3c5fa9cfb63963c0924d08939548dc2b969d86768c2846ad1`.
+SHA-256: `ab74a10ad2e07290d56079245cc01f770e84f8c9c39a6156f4c50a6e2c5d1fac`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -294,6 +318,11 @@ test/                           protocolo, malla, energía y humo de UI
   por mensaje (no caracteres): el número de trozos se codifica en un solo byte,
   así que un texto mayor no se podría reensamblar en el otro teléfono. La app
   avisa en vez de recortar el mensaje a escondidas.
+- El **mensajero** guarda hasta 24 h (máx. 64) tramas ajenas que ya no tenían
+  saltos. Quien las lleva no puede leerlas, pero sí ve que existen, entre qué
+  dos nodos y de qué tamaño. Una trama acarreada puede además entregarse dos
+  veces si su caché de duplicados se vació en ese teléfono; la app deduplica por
+  id, no por texto.
 - El ACK no va firmado: un nodo malicioso podría confirmar en falso.
 - Sin reputación ni lista de bloqueo; cualquiera con la app puede inundar la malla
   (el TTL y la caché lo amortiguan).
@@ -342,7 +371,29 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.5.1
+## 9. Qué cambió en la 0.5.2
+
+Más alcance real, sin hardware nuevo:
+
+- **Mensajero (store-and-forward)**: cuando a una trama se le acaban los saltos
+  ya no se tira. Se guarda en el teléfono y se vuelve a soltar, con saltos
+  nuevos, en cuanto aparece otro teléfono con la app. Así un mensaje cruza un
+  pueblo entero en dos caminatas, sin repetidores fijos ni internet. Se guarda
+  en disco (sobrevive a apagones) y caduca a las 24 h.
+- **Más saltos por tramo**: los mensajes privados pasan de 3 a **5 saltos**, el
+  canal abierto y el SOS de 5 a **7**, y el ACK viaja tan lejos como el mensaje
+  que confirma (antes se quedaba en 4 y el emisor marcaba "enviado" sin
+  confirmación real en cadenas largas).
+- **Caché de duplicados de 12 a 48 h y 8.192 entradas**: con el mensajero, una
+  trama puede reaparecer horas después; sin recordarla se entregaría repetida.
+- **Pruebas nuevas** (`test/courier_test.dart`): acarreo sin saltos, reemisión
+  con TTL fresco, que soltar dos veces no duplique el mensaje, supervivencia al
+  reinicio y caducidad a las 24 h.
+
+Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
+(10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
+
+## 10. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -375,7 +426,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 10. Licencia
+## 11. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),

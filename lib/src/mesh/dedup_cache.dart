@@ -3,7 +3,10 @@ import 'dart:collection';
 /// Caché de tramas ya vistas. Evita que una inundación se amplifique y que
 /// reenviemos el mismo mensaje dos veces por distintos enlaces.
 class DedupCache {
-  DedupCache({this.maxEntries = 4096, this.ttl = const Duration(hours: 12)});
+  /// El TTL de la caché cubre todo lo que una trama puede seguir siendo
+  /// válida: el mensajero la puede soltar horas después, y si ya no la
+  /// recordáramos la entregaríamos repetida.
+  DedupCache({this.maxEntries = 8192, this.ttl = const Duration(hours: 48)});
 
   final int maxEntries;
   final Duration ttl;

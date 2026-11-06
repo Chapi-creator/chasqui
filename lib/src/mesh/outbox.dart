@@ -151,9 +151,12 @@ class Outbox {
     }
   }
 
+  /// También se guardan las tramas acarreadas: si el teléfono se apaga (o se
+  /// queda sin batería en un apagón), al volver sigue llevando lo que recogió.
   List<Map<String, dynamic>> encode() => [
     ..._own.map(_encodeEntry),
     ..._channel.map((e) => _encodeEntry(e)..['c'] = true),
+    ..._relay.map((e) => _encodeEntry(e)..['r'] = true),
   ];
 
   static Map<String, dynamic> _encodeEntry(OutboxEntry entry) => {
@@ -174,7 +177,10 @@ class Outbox {
         );
         if (at.difference(queuedAt) > ttl) continue;
         final entry = OutboxEntry(frame: frame, queuedAt: queuedAt);
-        if (item['c'] == true) {
+        if (item['r'] == true) {
+          _relay.removeWhere((e) => e.key == entry.key);
+          _relay.add(entry);
+        } else if (item['c'] == true) {
           _channel.removeWhere((e) => e.key == entry.key);
           _channel.add(entry);
         } else {
@@ -187,5 +193,6 @@ class Outbox {
     }
     _trim(_own, maxMessages);
     _trim(_channel, maxChannel);
+    _trim(_relay, maxRelay);
   }
 }
