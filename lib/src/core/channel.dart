@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 
+import 'board.dart';
 import 'bytes.dart';
 import 'geo.dart';
 
@@ -18,16 +19,16 @@ enum ChannelKind {
   sos;
 
   String get code => switch (this) {
-        ChannelKind.message => 'msg',
-        ChannelKind.status => 'est',
-        ChannelKind.sos => 'sos',
-      };
+    ChannelKind.message => 'msg',
+    ChannelKind.status => 'est',
+    ChannelKind.sos => 'sos',
+  };
 
   static ChannelKind fromCode(Object? code) => switch (code) {
-        'sos' => ChannelKind.sos,
-        'est' => ChannelKind.status,
-        _ => ChannelKind.message,
-      };
+    'sos' => ChannelKind.sos,
+    'est' => ChannelKind.status,
+    _ => ChannelKind.message,
+  };
 }
 
 /// Estados rápidos que la UI ofrece con un toque.
@@ -53,11 +54,22 @@ class ChannelMessage {
     this.kind = ChannelKind.message,
     this.battery,
     this.point,
+    this.board,
+    this.expiresAt,
   });
 
   final String name;
   final String text;
   final ChannelKind kind;
+
+  /// Categoría del tablero de emergencia, si es una publicación del tablero.
+  ///
+  /// Va aparte de [kind] para que una app anterior (que no conoce el tablero)
+  /// siga mostrando el aviso como un mensaje normal del canal.
+  final BoardCategory? board;
+
+  /// Cuándo deja de mostrarse como información vigente. Solo con [board].
+  final DateTime? expiresAt;
 
   /// Batería del emisor (0–100), si la conoce.
   final int? battery;
@@ -73,19 +85,38 @@ class ChannelMessage {
   /// Se recorta al serializar: así ninguna ruta puede producir un contenido
   /// que el receptor descarte por tamaño.
   Map<String, dynamic> toJson() => {
-        'v': 1,
-        'n': clampUtf8Bytes(name, 48),
-        't': clampUtf8Bytes(text, maxTextBytes),
-        'k': kind.code,
-        if (battery != null) 'b': battery,
-        if (point != null) ...{
-          'la': point!.lat,
-          'lo': point!.lon,
-          'ac': point!.accuracy,
-        },
-      };
+    'v': 1,
+    'n': clampUtf8Bytes(name, 48),
+    't': clampUtf8Bytes(text, maxTextBytes),
+    'k': kind.code,
+    if (board != null) ...{
+      'cat': board!.code,
+      'exp': (expiresAt ?? DateTime.now().add(board!.validFor))
+          .millisecondsSinceEpoch,
+    },
+    if (battery != null) 'b': battery,
+    if (point != null) ...{
+      'la': point!.lat,
+      'lo': point!.lon,
+      'ac': point!.accuracy,
+    },
+  };
 
   Uint8List encode() => Uint8List.fromList(utf8.encode(jsonEncode(toJson())));
+
+  /// Plazo declarado por el emisor, acotado a lo que dura su categoría.
+  ///
+  /// Sin el tope, un aviso manipulado podría quedarse como "vigente" para
+  /// siempre. El emisor es quien decide cuándo caduca su propio aviso, pero no
+  /// cuánto puede durar como máximo.
+  static DateTime _readExpiry(Object? raw, BoardCategory board) {
+    final now = DateTime.now();
+    final ceiling = now.add(board.validFor * 2);
+    final value = (raw as num?)?.toInt();
+    if (value == null) return now.add(board.validFor);
+    final expiry = DateTime.fromMillisecondsSinceEpoch(value);
+    return expiry.isAfter(ceiling) ? ceiling : expiry;
+  }
 
   /// Lee un contenido recibido. Devuelve null si no es un canal válido.
   static ChannelMessage? decode(List<int> raw) {
@@ -107,12 +138,15 @@ class ChannelMessage {
         );
         if (candidate.isValid) point = candidate;
       }
+      final board = BoardCategory.fromCode(json['cat']);
       return ChannelMessage(
         name: clampUtf8Bytes(name, 48),
         text: clampUtf8Bytes(text, maxTextBytes),
         kind: ChannelKind.fromCode(json['k']),
         battery: battery?.clamp(0, 100),
         point: point,
+        board: board,
+        expiresAt: board == null ? null : _readExpiry(json['exp'], board),
       );
     } catch (_) {
       return null;

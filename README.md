@@ -34,6 +34,10 @@ ratos para no comerse la batería).
   batería adjunta, en un toque.
 - **SOS** con pulsación larga: manda tu posición, se repite y queda en cola
   hasta 24 h por si alguien llega después.
+- **Tablero de emergencia**: cuatro listas fijas — **Necesito**, **Ofrezco**,
+  **Desaparecidos** y **Peligro** — con la hora y los saltos de cada aviso a la
+  vista. Cada aviso caduca solo (2 h el peligro, 12 h necesito/ofrezco, 48 h
+  desaparecidos), así nadie camina hasta un punto de agua que ya no está.
 - **Modo repetidor**: deja un teléfono enchufado reenviando lo de los demás.
 - **Brújula**: con un chat abierto, una flecha apunta hacia la otra persona.
 - **Compartir la app**: manda el APK por Quick Share o Bluetooth, sin internet.
@@ -51,7 +55,9 @@ emergencia importa que el aviso cruce toda la cadena).
 - El nombre y la batería que ves los **declara el emisor**: no hay firma detrás.
   Si el nodo ya se anunció, su id sí está atado a su clave pública.
 - Un aviso normal sin nadie cerca **no se guarda** (un boletín viejo engaña).
-  Un estado o un SOS **sí**: se reintenta con backoff hasta 24 h.
+  Un estado, un SOS o una publicación del **tablero** **sí**: se reintenta con
+  backoff hasta 24 h. La diferencia es que el tablero lleva su propia
+  caducidad y se muestra aparte, con la hora, en vez de mezclarse en el chat.
 - El SOS incluye la última posición conocida y dispara una notificación de
   importancia máxima con vibración; tocarla abre el canal.
 
@@ -242,14 +248,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.5.2.apk`** (65 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.5.3.apk`** (65 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.5.2.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.2/SinRed-0.5.2.apk)
+[**SinRed-0.5.3.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.3/SinRed-0.5.3.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `ab74a10ad2e07290d56079245cc01f770e84f8c9c39a6156f4c50a6e2c5d1fac`.
+SHA-256: `e2a43ebf9b50d1ed0821544d8d660a24e17b6f11ae6dd8f575c86af4ffdac782`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -323,6 +329,10 @@ test/                           protocolo, malla, energía y humo de UI
   dos nodos y de qué tamaño. Una trama acarreada puede además entregarse dos
   veces si su caché de duplicados se vació en ese teléfono; la app deduplica por
   id, no por texto.
+- El tablero **no verifica nada**: cualquiera con la app puede publicar, el
+  nombre lo declara el emisor y no hay forma de comprobar que un «desaparecido»
+  exista. Tampoco hay moderación: un nodo puede inundar el tablero (el tope de
+  saltos y el tamaño máximo por aviso lo limitan, no lo impiden).
 - El ACK no va firmado: un nodo malicioso podría confirmar en falso.
 - Sin reputación ni lista de bloqueo; cualquiera con la app puede inundar la malla
   (el TTL y la caché lo amortiguan).
@@ -371,7 +381,32 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.5.2
+## 9. Qué cambió en la 0.5.3
+
+**Tablero de emergencia**, la información que se necesita después de un sismo o
+una inundación, ordenada para que sirva en vez de estorbar:
+
+- Cuatro categorías con plazo propio: **Necesito** (12 h), **Ofrezco** (12 h),
+  **Desaparecidos** (48 h) y **Peligro** (2 h). El aviso sale del tablero solo
+  al caducar; en el historial del canal sigue estando, con su hora.
+- **Antigüedad visible** en cada tarjeta: «Ana · hace 3 h · 2 saltos», más
+  «caduca en 5 h». Con relevos y acarreados, un aviso puede llegar viejo: quien
+  lo lee debe saberlo antes de salir corriendo.
+- Publicar **guardado en cola**: si no hay nadie cerca, el aviso sale cuando
+  aparezca alguien (un mensaje de chat sin enlaces no se guarda; esto sí).
+- Viaja por el **canal abierto**, así que usa los mismos saltos, el mensajero de
+  la 0.5.2 y el cifrado de grupo: **una app anterior sigue leyendo el texto**
+  como un mensaje normal del canal (solo pierde la categoría).
+- El plazo declarado por el emisor se acota al doble del de su categoría: nadie
+  puede dejar un «peligro» vigente para siempre.
+- La categoría y la caducidad **se guardan en disco**: cerrar la app no revive
+  avisos caducados.
+- Pruebas nuevas: 12 en `test/board_test.dart` (caducidad, orden, categorías,
+  compatibilidad con tramas antiguas, tope de plazo, cola y persistencia) y una
+  de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
+  y se publica de verdad). Total: **119 pruebas**.
+
+## 10. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -393,7 +428,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 10. Qué cambió en la 0.5.1
+## 11. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -426,7 +461,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 11. Licencia
+## 12. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),

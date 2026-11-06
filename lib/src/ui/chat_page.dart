@@ -13,6 +13,7 @@ import '../mesh/mesh_node.dart';
 import '../platform/compass_service.dart';
 import '../platform/location_service.dart';
 import 'active_chat.dart';
+import 'board_page.dart';
 import 'widgets.dart';
 
 class ChatPage extends StatefulWidget {
@@ -246,6 +247,14 @@ class _ChatPageState extends State<ChatPage> {
         actions: [
           if (_isChannel)
             IconButton(
+              tooltip: 'Tablero de emergencia',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const BoardPage()),
+              ),
+              icon: const Icon(Icons.dashboard_outlined),
+            ),
+          if (_isChannel)
+            IconButton(
               tooltip: 'Qué es el canal',
               onPressed: () => _showChannelInfo(context),
               icon: const Icon(Icons.info_outline),
@@ -356,7 +365,10 @@ class _ChatPageState extends State<ChatPage> {
           '• El texto va cifrado con una clave de grupo, no en claro.\n'
           '• El nombre y la batería que ves los declaró el emisor.\n'
           '• El SOS lleva tu posición si la tienes y se reintenta solo.\n\n'
-          'Úsalo para avisos cortos: agua, refugio, peligro, "estoy bien".',
+          'Úsalo para avisos cortos: agua, refugio, peligro, "estoy bien".\n\n'
+          'El icono del tablero, arriba, separa los avisos por categoría '
+          '(necesito, ofrezco, desaparecidos, peligro) y los caduca solo, para '
+          'que nadie salga a buscar agua donde ya no hay.',
         ),
         actions: [
           TextButton(
@@ -530,6 +542,30 @@ class _Bubble extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: textColor.withValues(alpha: 0.75),
                   ),
+                ),
+              ),
+            if (message.board != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      boardIcon(message.board!),
+                      size: 13,
+                      color: textColor.withValues(alpha: 0.8),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      message.board!.label.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        letterSpacing: 0.4,
+                        fontWeight: FontWeight.w700,
+                        color: textColor.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             if (message.kind == MessageKind.location &&

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'board.dart';
 import 'bytes.dart';
 import 'geo.dart';
 
@@ -21,6 +22,10 @@ enum MessageKind {
 
   /// Petición de auxilio del canal.
   sos,
+
+  /// Publicación del tablero de emergencia (necesito, ofrezco, desaparecidos,
+  /// peligro): lleva categoría y caducidad.
+  board,
 }
 
 class ChatMessage {
@@ -35,6 +40,8 @@ class ChatMessage {
     this.kind = MessageKind.text,
     this.location,
     this.senderName,
+    this.board,
+    this.expiresAt,
   });
 
   final String id;
@@ -58,51 +65,65 @@ class ChatMessage {
   /// muchos emisores en la misma conversación, así que cada burbuja lo lleva.
   final String? senderName;
 
+  /// Categoría del tablero de emergencia, solo en [MessageKind.board].
+  final BoardCategory? board;
+
+  /// Cuándo caduca el aviso del tablero. Se persiste porque el tablero tiene
+  /// que seguir ocultando avisos viejos después de reiniciar la app.
+  final DateTime? expiresAt;
+
   ChatMessage copyWith({MessageStatus? status, int? hops}) => ChatMessage(
-        id: id,
-        peerId: peerId,
-        outgoing: outgoing,
-        text: text,
-        timestamp: timestamp,
-        status: status ?? this.status,
-        hops: hops ?? this.hops,
-        kind: kind,
-        location: location,
-        senderName: senderName,
-      );
+    id: id,
+    peerId: peerId,
+    outgoing: outgoing,
+    text: text,
+    timestamp: timestamp,
+    status: status ?? this.status,
+    hops: hops ?? this.hops,
+    kind: kind,
+    location: location,
+    senderName: senderName,
+    board: board,
+    expiresAt: expiresAt,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'peerId': peerId,
-        'outgoing': outgoing,
-        'text': text,
-        'ts': timestamp.millisecondsSinceEpoch,
-        'status': status.name,
-        'hops': hops,
-        'kind': kind.name,
-        if (location != null) 'geo': location!.toMap(),
-        if (senderName != null) 'from': senderName,
-      };
+    'id': id,
+    'peerId': peerId,
+    'outgoing': outgoing,
+    'text': text,
+    'ts': timestamp.millisecondsSinceEpoch,
+    'status': status.name,
+    'hops': hops,
+    'kind': kind.name,
+    if (location != null) 'geo': location!.toMap(),
+    if (senderName != null) 'from': senderName,
+    if (board != null) 'cat': board!.code,
+    if (expiresAt != null) 'exp': expiresAt!.millisecondsSinceEpoch,
+  };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-        id: json['id'] as String,
-        peerId: json['peerId'] as String,
-        outgoing: json['outgoing'] as bool,
-        text: json['text'] as String,
-        timestamp:
-            DateTime.fromMillisecondsSinceEpoch((json['ts'] as num).toInt()),
-        status: MessageStatus.values.firstWhere(
-          (s) => s.name == json['status'],
-          orElse: () => MessageStatus.queued,
-        ),
-        hops: (json['hops'] as num?)?.toInt() ?? 0,
-        kind: MessageKind.values.firstWhere(
-          (k) => k.name == json['kind'],
-          orElse: () => MessageKind.text,
-        ),
-        location: GeoPoint.fromMap(json['geo']),
-        senderName: json['from'] as String?,
-      );
+    id: json['id'] as String,
+    peerId: json['peerId'] as String,
+    outgoing: json['outgoing'] as bool,
+    text: json['text'] as String,
+    timestamp: DateTime.fromMillisecondsSinceEpoch((json['ts'] as num).toInt()),
+    status: MessageStatus.values.firstWhere(
+      (s) => s.name == json['status'],
+      orElse: () => MessageStatus.queued,
+    ),
+    hops: (json['hops'] as num?)?.toInt() ?? 0,
+    kind: MessageKind.values.firstWhere(
+      (k) => k.name == json['kind'],
+      orElse: () => MessageKind.text,
+    ),
+    location: GeoPoint.fromMap(json['geo']),
+    senderName: json['from'] as String?,
+    board: BoardCategory.fromCode(json['cat']),
+    expiresAt: json['exp'] == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch((json['exp'] as num).toInt()),
+  );
 }
 
 /// Nodo conocido de la malla (contacto o simple repetidor).
@@ -148,31 +169,30 @@ class PeerRecord {
   String get shortCode => shortId(id);
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'key': toHex(publicKey),
-        'lastSeen': lastSeen.millisecondsSinceEpoch,
-        'hops': hops,
-        'rssi': rssi,
-        'batteryFriendly': batteryFriendly,
-        'contact': isContact,
-        'since': contactSince?.millisecondsSinceEpoch,
-      };
+    'id': id,
+    'name': name,
+    'key': toHex(publicKey),
+    'lastSeen': lastSeen.millisecondsSinceEpoch,
+    'hops': hops,
+    'rssi': rssi,
+    'batteryFriendly': batteryFriendly,
+    'contact': isContact,
+    'since': contactSince?.millisecondsSinceEpoch,
+  };
 
   factory PeerRecord.fromJson(Map<String, dynamic> json) => PeerRecord(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        publicKey: fromHex(json['key'] as String),
-        lastSeen: DateTime.fromMillisecondsSinceEpoch(
-            (json['lastSeen'] as num).toInt()),
-        hops: (json['hops'] as num?)?.toInt() ?? 0,
-        rssi: (json['rssi'] as num?)?.toInt(),
-        batteryFriendly: json['batteryFriendly'] as bool? ?? true,
-        isContact: json['contact'] as bool? ?? false,
-        contactSince: json['since'] == null
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch(
-                (json['since'] as num).toInt(),
-              ),
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    publicKey: fromHex(json['key'] as String),
+    lastSeen: DateTime.fromMillisecondsSinceEpoch(
+      (json['lastSeen'] as num).toInt(),
+    ),
+    hops: (json['hops'] as num?)?.toInt() ?? 0,
+    rssi: (json['rssi'] as num?)?.toInt(),
+    batteryFriendly: json['batteryFriendly'] as bool? ?? true,
+    isContact: json['contact'] as bool? ?? false,
+    contactSince: json['since'] == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch((json['since'] as num).toInt()),
+  );
 }

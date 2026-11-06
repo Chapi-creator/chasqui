@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/board.dart';
 import '../core/models.dart';
 import '../mesh/mesh_node.dart';
 import 'add_contact_page.dart';
+import 'board_page.dart';
 import 'chat_page.dart';
 import 'contacts_page.dart';
 import 'nodes_page.dart';
@@ -39,9 +41,9 @@ class _HomePageState extends State<HomePage> {
                 ? () async {
                     await node.restartRadio();
                     if (context.mounted && node.error != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(node.error!)),
-                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(node.error!)));
                     }
                   }
                 : null,
@@ -61,15 +63,15 @@ class _HomePageState extends State<HomePage> {
       ),
       floatingActionButton: switch (_tab) {
         0 => FloatingActionButton.extended(
-            onPressed: () => _openNewChat(context),
-            icon: const Icon(Icons.chat_bubble_outline),
-            label: const Text('Nuevo chat'),
-          ),
+          onPressed: () => _openNewChat(context),
+          icon: const Icon(Icons.chat_bubble_outline),
+          label: const Text('Nuevo chat'),
+        ),
         1 => FloatingActionButton.extended(
-            onPressed: () => openAddContact(context),
-            icon: const Icon(Icons.qr_code_scanner),
-            label: const Text('Agregar'),
-          ),
+          onPressed: () => openAddContact(context),
+          icon: const Icon(Icons.qr_code_scanner),
+          label: const Text('Agregar'),
+        ),
         _ => null,
       },
       bottomNavigationBar: NavigationBar(
@@ -131,13 +133,14 @@ class _HomePageState extends State<HomePage> {
             ),
             for (final peer in peers)
               ListTile(
-                leading: PeerAvatar(
-                  name: peer.name,
-                  online: peer.directLink,
-                ),
+                leading: PeerAvatar(name: peer.name, online: peer.directLink),
                 title: Text(peer.name),
                 subtitle: Text(
-                  '${peer.directLink ? 'Enlace directo' : peer.hops > 0 ? '${peer.hops} saltos' : 'Sin señal'}'
+                  '${peer.directLink
+                      ? 'Enlace directo'
+                      : peer.hops > 0
+                      ? '${peer.hops} saltos'
+                      : 'Sin señal'}'
                   ' · ${peer.shortCode}',
                 ),
                 trailing: SignalBars(rssi: peer.rssi),
@@ -150,9 +153,7 @@ class _HomePageState extends State<HomePage> {
     );
     if (selected != null && context.mounted) {
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ChatPage(peerId: selected),
-        ),
+        MaterialPageRoute<void>(builder: (_) => ChatPage(peerId: selected)),
       );
     }
   }
@@ -178,7 +179,8 @@ class _StatusLine extends StatelessWidget {
       text = 'Modo demo · ${node.connectedLinks} nodos simulados';
       color = scheme.primary;
     } else if (node.connectedLinks > 0) {
-      text = 'Malla activa · ${node.connectedLinks} '
+      text =
+          'Malla activa · ${node.connectedLinks} '
           '${node.connectedLinks == 1 ? 'enlace' : 'enlaces'}';
       color = const Color(0xFF2FD37A);
     } else if (node.scanning) {
@@ -196,7 +198,10 @@ class _StatusLine extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(text, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+        Text(
+          text,
+          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+        ),
       ],
     );
   }
@@ -212,12 +217,13 @@ class _ChatsTab extends StatelessWidget {
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: conversations.isEmpty ? 2 : conversations.length + 1,
+      itemCount: conversations.isEmpty ? 3 : conversations.length + 2,
       separatorBuilder: (_, index) => const Divider(height: 1, indent: 76),
       itemBuilder: (context, index) {
         if (index == 0) return _ChannelTile(node: node);
+        if (index == 1) return _BoardTile(node: node);
         if (conversations.isEmpty) return _EmptyChats(node: node);
-        final peer = conversations[index - 1];
+        final peer = conversations[index - 2];
         final last = node.lastMessageFor(peer.id);
         return ListTile(
           leading: PeerAvatar(name: peer.name, online: peer.directLink),
@@ -236,7 +242,8 @@ class _ChatsTab extends StatelessWidget {
                   formatRelative(last.timestamp),
                   style: TextStyle(
                     fontSize: 12,
-                    color: last.status == MessageStatus.delivered || !last.outgoing
+                    color:
+                        last.status == MessageStatus.delivered || !last.outgoing
                         ? Theme.of(context).colorScheme.onSurfaceVariant
                         : Theme.of(context).colorScheme.primary,
                   ),
@@ -262,9 +269,7 @@ class _ChatsTab extends StatelessWidget {
             ],
           ),
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => ChatPage(peerId: peer.id),
-            ),
+            MaterialPageRoute<void>(builder: (_) => ChatPage(peerId: peer.id)),
           ),
         );
       },
@@ -286,10 +291,7 @@ class _ChannelTile extends StatelessWidget {
       leading: CircleAvatar(
         radius: 22,
         backgroundColor: scheme.primaryContainer,
-        child: Icon(
-          Icons.campaign_outlined,
-          color: scheme.onPrimaryContainer,
-        ),
+        child: Icon(Icons.campaign_outlined, color: scheme.onPrimaryContainer),
       ),
       title: Row(
         children: [
@@ -325,6 +327,71 @@ class _ChannelTile extends StatelessWidget {
   }
 }
 
+/// Entrada al tablero de emergencia, debajo del canal abierto.
+class _BoardTile extends StatelessWidget {
+  const _BoardTile({required this.node});
+
+  final MeshNode node;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final active = [
+      for (final category in BoardCategory.values) ...node.boardPosts(category),
+    ];
+    final dangers = node.boardPosts(BoardCategory.danger).length;
+    final last = active.isEmpty
+        ? null
+        : active.reduce((a, b) => a.timestamp.isAfter(b.timestamp) ? a : b);
+
+    return ListTile(
+      leading: CircleAvatar(
+        radius: 22,
+        backgroundColor: dangers > 0
+            ? scheme.errorContainer
+            : scheme.secondaryContainer,
+        child: Icon(
+          Icons.dashboard_outlined,
+          color: dangers > 0
+              ? scheme.onErrorContainer
+              : scheme.onSecondaryContainer,
+        ),
+      ),
+      title: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Tablero de emergencia',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (active.isNotEmpty)
+            Text(
+              formatLastSeen(last!.timestamp),
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+        ],
+      ),
+      subtitle: Text(
+        active.isEmpty
+            ? 'Necesito, ofrezco, desaparecidos y peligro · caducan solos'
+            : '${active.length} ${active.length == 1 ? 'aviso vigente' : 'avisos vigentes'}'
+                  '${dangers > 0 ? ' · $dangers de peligro' : ''}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: dangers > 0 ? scheme.error : scheme.onSurfaceVariant,
+        ),
+      ),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const BoardPage())),
+    );
+  }
+}
+
 class _EmptyChats extends StatelessWidget {
   const _EmptyChats({required this.node});
 
@@ -339,88 +406,83 @@ class _EmptyChats extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-        Icon(Icons.forum_outlined, size: 72, color: scheme.primary),
-        const SizedBox(height: 16),
-        Text(
-          'Chatea sin internet',
-          textAlign: TextAlign.center,
-          style: Theme.of(context)
-              .textTheme
-              .headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'Los mensajes viajan de teléfono en teléfono por Bluetooth LE. '
-          'No hay servidor ni operador: si no hay nadie cerca, el mensaje '
-          'queda guardado y sale cuando alguien aparece.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: scheme.onSurfaceVariant, height: 1.45),
-        ),
-        const SizedBox(height: 24),
-        InfoCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.battery_saver, color: scheme.primary),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Consumo controlado',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Escucha ${plan.window.inSeconds}s cada ${plan.interval.inSeconds}s '
-                '(${(plan.dutyCycle * 100).toStringAsFixed(1)}% del tiempo). '
-                'El resto, la radio descansa.',
-                style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
-              ),
-            ],
+          Icon(Icons.forum_outlined, size: 72, color: scheme.primary),
+          const SizedBox(height: 16),
+          Text(
+            'Chatea sin internet',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
-        ),
-        const SizedBox(height: 16),
-        InfoCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.lock_outline, color: scheme.primary),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Cifrado de extremo a extremo',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Cada teléfono tiene su par de claves X25519. El nodo que '
-                'repite un mensaje no puede leerlo.',
-                style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
-              ),
-            ],
+          const SizedBox(height: 10),
+          Text(
+            'Los mensajes viajan de teléfono en teléfono por Bluetooth LE. '
+            'No hay servidor ni operador: si no hay nadie cerca, el mensaje '
+            'queda guardado y sale cuando alguien aparece.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: scheme.onSurfaceVariant, height: 1.45),
           ),
-        ),
-        const SizedBox(height: 20),
-        OutlinedButton.icon(
-          onPressed: () => node.switchTransport(
-            node.createDemoTransport(),
-            demo: true,
+          const SizedBox(height: 24),
+          InfoCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.battery_saver, color: scheme.primary),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Consumo controlado',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Escucha ${plan.window.inSeconds}s cada ${plan.interval.inSeconds}s '
+                  '(${(plan.dutyCycle * 100).toStringAsFixed(1)}% del tiempo). '
+                  'El resto, la radio descansa.',
+                  style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
+                ),
+              ],
+            ),
           ),
-          icon: const Icon(Icons.smart_toy_outlined),
-          label: const Text('Probar con nodos simulados'),
-        ),
+          const SizedBox(height: 16),
+          InfoCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.lock_outline, color: scheme.primary),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Cifrado de extremo a extremo',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Cada teléfono tiene su par de claves X25519. El nodo que '
+                  'repite un mensaje no puede leerlo.',
+                  style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: () =>
+                node.switchTransport(node.createDemoTransport(), demo: true),
+            icon: const Icon(Icons.smart_toy_outlined),
+            label: const Text('Probar con nodos simulados'),
+          ),
         ],
       ),
     );

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/board.dart';
 import '../core/bytes.dart';
 import '../core/channel.dart';
 import '../core/contact_code.dart';
@@ -521,6 +522,18 @@ class MeshNode extends ChangeNotifier {
   Future<void> sendChannelMessage(String text) =>
       _sendChannel(text, ChannelKind.message);
 
+  /// Publica un aviso en el tablero de emergencia.
+  ///
+  /// Va por el canal abierto (lo lee quien esté cerca, sin destinatario) y se
+  /// guarda en cola: a diferencia de un mensaje de chat, un "necesito agua" o
+  /// "busco a mi hermano" sigue sirviendo cuando alguien aparezca más tarde.
+  Future<void> sendBoardPost(BoardCategory category, String text) =>
+      _sendChannel(text, ChannelKind.message, board: category);
+
+  /// Publicaciones vigentes del tablero (caducadas aparte).
+  List<ChatMessage> boardPosts(BoardCategory category, {DateTime? now}) =>
+      activeBoardPosts(channelMessages, category: category, now: now);
+
   /// Estado rápido de una familia o un vecino.
   Future<void> sendQuickStatus(QuickStatus status) =>
       _sendChannel(status.label, ChannelKind.status);
@@ -537,15 +550,19 @@ class MeshNode extends ChangeNotifier {
     String text,
     ChannelKind kind, {
     GeoPoint? point,
+    BoardCategory? board,
   }) async {
     final clean = clampUtf8Bytes(text.trim(), ChannelMessage.maxTextBytes);
     if (clean.isEmpty) return;
+    final expiresAt = board == null ? null : DateTime.now().add(board.validFor);
     final message = ChannelMessage(
       name: _displayName,
       text: clean,
       kind: kind,
       battery: _scheduler.batteryLevel,
       point: kind == ChannelKind.sos ? (point ?? _myLocation) : null,
+      board: board,
+      expiresAt: expiresAt,
     );
     final frame = await _router.buildChannelFrame(message);
     final hasLinks = _transport.connectedLinks > 0;
@@ -558,16 +575,19 @@ class MeshNode extends ChangeNotifier {
         timestamp: DateTime.now(),
         status: hasLinks
             ? MessageStatus.sent
-            : kind == ChannelKind.message
+            : kind == ChannelKind.message && board == null
             ? MessageStatus.failed
             : MessageStatus.queued,
-        kind: _kindOf(kind),
+        kind: board != null ? MessageKind.board : _kindOf(kind),
         senderName: _displayName,
+        board: board,
+        expiresAt: expiresAt,
       ),
     );
-    // Un aviso normal sin nadie cerca no se guarda: un boletín viejo engaña.
-    // Los estados y el SOS sí: "estoy atrapado aquí" sigue sirviendo mañana.
-    if (kind != ChannelKind.message) {
+    // Un aviso de chat sin nadie cerca no se guarda: un boletín viejo engaña.
+    // Los estados, el SOS y el tablero sí: "estoy atrapado aquí" o "busco a
+    // mi hermano" siguen sirviendo mañana, y el tablero además caduca solo.
+    if (kind != ChannelKind.message || board != null) {
       _router.outbox.enqueueChannel(frame);
     }
     await _broadcast(frame);
@@ -598,9 +618,11 @@ class MeshNode extends ChangeNotifier {
         timestamp: now,
         status: MessageStatus.delivered,
         hops: hops,
-        kind: _kindOf(message.kind),
+        kind: message.board != null ? MessageKind.board : _kindOf(message.kind),
         location: message.point,
         senderName: name,
+        board: message.board,
+        expiresAt: message.expiresAt,
       ),
     );
 
