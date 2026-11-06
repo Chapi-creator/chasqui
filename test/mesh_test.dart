@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sinred/src/core/channel.dart';
 import 'package:sinred/src/core/frame.dart';
 import 'package:sinred/src/core/identity.dart';
 import 'package:sinred/src/core/models.dart';
@@ -45,7 +48,8 @@ void main() {
     routerB = MeshRouter(
       identity: bob,
       broadcast: (frame, {exceptLink}) => bus.deliver(frame, from: bob.id),
-      onMessage: (from, text, hops) async => inbox.add('$text|${from.name}|$hops'),
+      onMessage: (from, text, hops) async =>
+          inbox.add('$text|${from.name}|$hops'),
       onAck: (key, peer) => acks.add(key),
     );
     routerC = MeshRouter(
@@ -64,26 +68,31 @@ void main() {
     await bus.deliver(frame, from: router.identity.id);
   }
 
-  test('dos nodos se descubren y se entrega el mensaje con confirmación',
-      () async {
-    await announce(routerA, 'Ana');
-    await announce(routerB, 'Beto');
+  test(
+    'dos nodos se descubren y se entrega el mensaje con confirmación',
+    () async {
+      await announce(routerA, 'Ana');
+      await announce(routerB, 'Beto');
 
-    expect(routerA.peers[bob.id]?.name, 'Beto');
-    expect(routerB.peers[alice.id]?.name, 'Ana');
+      expect(routerA.peers[bob.id]?.name, 'Beto');
+      expect(routerB.peers[alice.id]?.name, 'Ana');
 
-    final frame = await routerA.buildMessageFrame(
-      peer: routerA.peers[bob.id]!,
-      text: 'hola desde el sótano',
-    );
-    routerA.outbox.enqueueOwn(frame);
-    await bus.deliver(frame, from: alice.id);
+      final frame = await routerA.buildMessageFrame(
+        peer: routerA.peers[bob.id]!,
+        text: 'hola desde el sótano',
+      );
+      routerA.outbox.enqueueOwn(frame);
+      await bus.deliver(frame, from: alice.id);
 
-    expect(inbox.single, 'hola desde el sótano|Ana|0');
-    expect(routerA.outbox.ownPending, isEmpty,
-        reason: 'el ACK debe sacar el mensaje de la cola');
-    expect(acks, contains(frame.dedupKey));
-  });
+      expect(inbox.single, 'hola desde el sótano|Ana|0');
+      expect(
+        routerA.outbox.ownPending,
+        isEmpty,
+        reason: 'el ACK debe sacar el mensaje de la cola',
+      );
+      expect(acks, contains(frame.dedupKey));
+    },
+  );
 
   test('un tercer nodo repite sin poder leer', () async {
     await announce(routerA, 'Ana');
@@ -100,8 +109,11 @@ void main() {
     await routerC.handlePacket(frame.encode(), linkId: 'link:A');
     expect(routerC.peers.keys, contains(alice.id));
 
-    expect(inbox, isNot(contains('C:no-deberia')),
-        reason: 'el repetidor no descifra ni entrega ajeno');
+    expect(
+      inbox,
+      isNot(contains('C:no-deberia')),
+      reason: 'el repetidor no descifra ni entrega ajeno',
+    );
 
     final decoded = MeshFrame.decode(frame.encode());
     await routerB.handlePacket(decoded.forwarded().encode(), linkId: 'link:C');
@@ -132,16 +144,14 @@ void main() {
       id: (await routerA.buildMessageFrame(
         peer: routerA.peers[bob.id]!,
         text: 'x',
-      ))
-          .id,
+      )).id,
       source: alice.nodeId,
       destination: bob.nodeId,
       timestamp: DateTime.now().millisecondsSinceEpoch,
       payload: (await routerA.buildMessageFrame(
         peer: routerA.peers[bob.id]!,
         text: 'x',
-      ))
-          .payload,
+      )).payload,
       ttl: 1,
     );
 
@@ -149,36 +159,42 @@ void main() {
     expect(MeshFrame.decode(frame.encode()).ttl, 1);
   });
 
-  test('si el mensaje llega antes que la presencia, el reintento lo entrega',
-      () async {
-    // El emisor pasa por un repetidor, así que B recibe su mensaje antes de
-    // haber visto nunca su anuncio de presencia.
-    final stranger = await NodeIdentity.generate();
-    final strangerRouter = MeshRouter(
-      identity: stranger,
-      broadcast: (frame, {exceptLink}) async {},
-    );
-    final frame = await strangerRouter.buildMessageFrame(
-      peer: PeerRecord(
-        id: bob.id,
-        name: 'Beto',
-        publicKey: bob.publicKeyBytes,
-        lastSeen: DateTime.now(),
-      ),
-      text: 'llego antes que mi dueño',
-    );
+  test(
+    'si el mensaje llega antes que la presencia, el reintento lo entrega',
+    () async {
+      // El emisor pasa por un repetidor, así que B recibe su mensaje antes de
+      // haber visto nunca su anuncio de presencia.
+      final stranger = await NodeIdentity.generate();
+      final strangerRouter = MeshRouter(
+        identity: stranger,
+        broadcast: (frame, {exceptLink}) async {},
+      );
+      final frame = await strangerRouter.buildMessageFrame(
+        peer: PeerRecord(
+          id: bob.id,
+          name: 'Beto',
+          publicKey: bob.publicKeyBytes,
+          lastSeen: DateTime.now(),
+        ),
+        text: 'llego antes que mi dueño',
+      );
 
-    await routerB.handlePacket(frame.encode(), linkId: 'link:C');
-    expect(inbox, isEmpty, reason: 'todavía no conoce al emisor');
+      await routerB.handlePacket(frame.encode(), linkId: 'link:C');
+      expect(inbox, isEmpty, reason: 'todavía no conoce al emisor');
 
-    // La presencia llega después...
-    await announce(strangerRouter, 'Desconocido');
-    // ...y el emisor reintenta la misma trama (misma id, no una nueva).
-    await routerB.handlePacket(frame.encode(), linkId: 'link:C');
+      // La presencia llega después...
+      await announce(strangerRouter, 'Desconocido');
+      // ...y el emisor reintenta la misma trama (misma id, no una nueva).
+      await routerB.handlePacket(frame.encode(), linkId: 'link:C');
 
-    expect(inbox.single, startsWith('llego antes que mi dueño'),
-        reason: 'marcar como vista una trama no entregable la perdía para siempre');
-  });
+      expect(
+        inbox.single,
+        startsWith('llego antes que mi dueño'),
+        reason:
+            'marcar como vista una trama no entregable la perdía para siempre',
+      );
+    },
+  );
 
   test('un mensaje de un nodo desconocido no se entrega', () async {
     final stranger = await NodeIdentity.generate();
@@ -201,5 +217,65 @@ void main() {
 
     await routerB.handlePacket(frame.encode(), linkId: 'link:X');
     expect(inbox, isEmpty);
+  });
+
+  test('una trama de canal manipulada no se repite', () async {
+    final frame = await routerA.buildChannelFrame(
+      ChannelMessage(name: 'Ana', text: 'hola a todos'),
+    );
+    final payload = Uint8List.fromList(frame.payload);
+    payload[0] ^= 0xFF;
+    final tampered = MeshFrame(
+      type: frame.type,
+      id: frame.id,
+      source: frame.source,
+      destination: frame.destination,
+      timestamp: frame.timestamp,
+      payload: payload,
+      ttl: frame.ttl,
+    );
+    final relays = <MeshFrame>[];
+    final receiver = MeshRouter(
+      identity: await NodeIdentity.generate(),
+      broadcast: (f, {exceptLink}) async => relays.add(f),
+      onChannel: (_, _, _) => fail('no debería entregar basura'),
+    );
+
+    await receiver.handlePacket(tampered.encode());
+
+    expect(receiver.relayed, 0);
+    expect(relays, isEmpty, reason: 'no se amplifica ruido por la malla');
+  });
+
+  test('la lista de nodos tiene tope y no expulsa contactos', () async {
+    final router = MeshRouter(
+      identity: await NodeIdentity.generate(),
+      broadcast: (frame, {exceptLink}) async {},
+      maxPeers: 3,
+    );
+    final frames = <MeshFrame>[];
+    for (var i = 0; i < 6; i++) {
+      final id = await NodeIdentity.generate();
+      frames.add(
+        MeshFrame.presence(
+          source: Uint8List.fromList(id.nodeId),
+          publicKey: id.publicKey,
+          name: 'Nodo $i',
+        ),
+      );
+    }
+
+    await router.handlePacket(frames.first.encode());
+    router.peers.values.first.isContact = true;
+    for (final frame in frames.skip(1)) {
+      await router.handlePacket(frame.encode());
+    }
+
+    expect(router.peers.length, lessThanOrEqualTo(3));
+    expect(
+      router.peers.values.where((p) => p.isContact),
+      hasLength(1),
+      reason: 'un contacto de la libreta nunca se descarta',
+    );
   });
 }

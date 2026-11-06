@@ -362,6 +362,10 @@ class BleMeshTransport implements MeshTransport {
   void _onCentralLinkChanged(CentralConnectionStateChangedEventArgs args) {
     if (args.state == ConnectionState.disconnected) {
       unawaited(_dropLink(args.central.uuid.toString()));
+      // Este enlace era del rol periférico: al caer queda un cupo libre, pero
+      // el escaneo seguía apagado desde que se alcanzó el máximo de enlaces y
+      // la malla dejaba de descubrir teléfonos nuevos para siempre.
+      if (_discoveryWanted) unawaited(_startDiscovery());
     }
   }
 

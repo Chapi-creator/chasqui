@@ -254,7 +254,14 @@ class MainActivity : FlutterActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
-            permissionRequestCode -> replyPendingPermissions(true)
+            permissionRequestCode -> {
+                // Se responde lo que el usuario decidió de verdad: antes se
+                // contestaba "concedido" aunque hubiera denegado los permisos.
+                val granted = permissions.isNotEmpty() &&
+                    grantResults.isNotEmpty() &&
+                    grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+                replyPendingPermissions(granted)
+            }
             locationPermissionRequestCode ->
                 replyLocationPermissions(hasLocationPermission())
         }

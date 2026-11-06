@@ -71,7 +71,10 @@ void main() {
         plaintext: utf8.encode('aviso'),
         aad: <int>[7, 7, 7],
       );
-      final clear = await ChannelCrypto.open(sealed: sealed, aad: <int>[7, 7, 7]);
+      final clear = await ChannelCrypto.open(
+        sealed: sealed,
+        aad: <int>[7, 7, 7],
+      );
       expect(utf8.decode(clear), 'aviso');
     });
 
@@ -116,7 +119,12 @@ void main() {
       expect(frame.type, FrameType.channel);
       expect(frame.isBroadcast, isTrue);
       expect(frame.ttl, MeshRouter.channelTtl);
-      expect(frame.destinationHex, MeshFrame.broadcastId.map((b) => b.toRadixString(16).padLeft(2, '0')).join());
+      expect(
+        frame.destinationHex,
+        MeshFrame.broadcastId
+            .map((b) => b.toRadixString(16).padLeft(2, '0'))
+            .join(),
+      );
     });
 
     test('se entrega aunque el emisor sea desconocido y se reenvía', () async {
@@ -156,13 +164,17 @@ void main() {
         payload: randomBytes(40),
         ttl: 3,
       );
+      final relays = <MeshFrame>[];
       final receiver = MeshRouter(
         identity: await NodeIdentity.generate(),
-        broadcast: (f, {String? exceptLink}) async {},
+        broadcast: (f, {String? exceptLink}) async => relays.add(f),
         onChannel: (_, _, _) => fail('no debería entregar basura'),
       );
       await receiver.handlePacket(frame.encode());
-      expect(receiver.relayed, 1);
+      // Ya no se repite: antes, una trama que nadie podía descifrar se
+      // reenviaba con TTL 5 y convertía el ruido en una inundación.
+      expect(receiver.relayed, 0);
+      expect(relays, isEmpty);
     });
   });
 
@@ -189,27 +201,30 @@ void main() {
       if (await directory.exists()) await directory.delete(recursive: true);
     });
 
-    test('un aviso propio sale por el enlace y queda en el historial', () async {
-      transport.connect('link-1');
+    test(
+      'un aviso propio sale por el enlace y queda en el historial',
+      () async {
+        transport.connect('link-1');
 
-      await node.sendChannelMessage('Hay agua en la escuela');
-      await pumpEventQueue();
+        await node.sendChannelMessage('Hay agua en la escuela');
+        await pumpEventQueue();
 
-      final message = node.channelMessages.single;
-      expect(message.text, 'Hay agua en la escuela');
-      expect(message.kind, MessageKind.text);
-      expect(message.status, MessageStatus.sent);
-      expect(message.senderName, isNotEmpty);
+        final message = node.channelMessages.single;
+        expect(message.text, 'Hay agua en la escuela');
+        expect(message.kind, MessageKind.text);
+        expect(message.status, MessageStatus.sent);
+        expect(message.senderName, isNotEmpty);
 
-      final frame = MeshFrame.decode(transport.sent.last);
-      expect(frame.type, FrameType.channel);
-      expect(frame.isBroadcast, isTrue);
-      final clear = await ChannelCrypto.open(
-        sealed: frame.payload,
-        aad: frame.authenticatedHeader(),
-      );
-      expect(ChannelMessage.decode(clear)!.text, 'Hay agua en la escuela');
-    });
+        final frame = MeshFrame.decode(transport.sent.last);
+        expect(frame.type, FrameType.channel);
+        expect(frame.isBroadcast, isTrue);
+        final clear = await ChannelCrypto.open(
+          sealed: frame.payload,
+          aad: frame.authenticatedHeader(),
+        );
+        expect(ChannelMessage.decode(clear)!.text, 'Hay agua en la escuela');
+      },
+    );
 
     test('sin enlaces un aviso normal no se guarda', () async {
       await node.sendChannelMessage('aviso al aire');
@@ -219,12 +234,9 @@ void main() {
     });
 
     test('el SOS se guarda en cola y lleva la posición', () async {
-      node.updateMyLocation(GeoPoint(
-        lat: 4.60971,
-        lon: -74.08175,
-        accuracy: 9,
-        at: DateTime.now(),
-      ));
+      node.updateMyLocation(
+        GeoPoint(lat: 4.60971, lon: -74.08175, accuracy: 9, at: DateTime.now()),
+      );
 
       await node.sendSos();
       await pumpEventQueue();
@@ -242,6 +254,28 @@ void main() {
       expect(sent.kind, ChannelKind.sos);
       expect(sent.point!.lat, closeTo(4.60971, 1e-6));
       expect(sent.battery, isNotNull);
+    });
+
+    test('el SOS adjunta una posición recién pedida al GPS', () async {
+      // Compartir ubicación está apagado: sin la posición explícita el SOS
+      // salía sin coordenadas justo cuando más importan.
+      await node.sendSos(
+        point: GeoPoint(
+          lat: 6.2442,
+          lon: -75.5812,
+          accuracy: 18,
+          at: DateTime.now(),
+        ),
+      );
+
+      final frame = MeshFrame.decode(transport.sent.last);
+      final clear = await ChannelCrypto.open(
+        sealed: frame.payload,
+        aad: frame.authenticatedHeader(),
+      );
+      final sent = ChannelMessage.decode(clear)!;
+      expect(sent.kind, ChannelKind.sos);
+      expect(sent.point!.lat, closeTo(6.2442, 1e-6));
     });
 
     test('un estado rápido avisa y se ve como estado', () async {

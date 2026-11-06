@@ -33,6 +33,7 @@ class _ChatPageState extends State<ChatPage> {
   StreamSubscription<double>? _compassSubscription;
   double? _heading;
   bool _compassTried = false;
+  bool _compassScheduled = false;
 
   bool get _isChannel => widget.peerId == MeshNode.channelId;
 
@@ -55,7 +56,9 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _send(MeshNode node) async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
-    final limit = _isChannel ? MeshNode.maxChannelBytes : MeshNode.maxMessageBytes;
+    final limit = _isChannel
+        ? MeshNode.maxChannelBytes
+        : MeshNode.maxMessageBytes;
     if (utf8.encode(text).length > limit) {
       // Se avisa en vez de recortar a escondidas: el usuario decide qué quitar.
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,8 +127,18 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _sendSos(MeshNode node) async {
-    await node.sendSos();
+    if (_sending) return;
+    setState(() => _sending = true);
+    // Un SOS sin coordenadas sirve mucho menos. Si aún no hay posición, se
+    // pide la última conocida al GPS (sin abrir un diálogo de permisos en
+    // mitad de una emergencia: si no está concedido, sale sin posición).
+    var point = node.myLocation;
+    if (point == null && await LocationService.hasPermission()) {
+      point = await LocationService.current();
+    }
+    await node.sendSos(point: point);
     if (!mounted) return;
+    setState(() => _sending = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -182,8 +195,13 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
 
-    if (peer != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _ensureCompass(node));
+    if (peer != null && !_compassScheduled) {
+      // Un solo callback pendiente: antes cada rebuild apilaba otro.
+      _compassScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _compassScheduled = false;
+        _ensureCompass(node);
+      });
     }
 
     final myPoint = node.myLocation;
@@ -259,9 +277,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
           Expanded(
             child: messages.isEmpty
-                ? (_isChannel
-                    ? const _EmptyChannel()
-                    : _EmptyChat(peer: peer!))
+                ? (_isChannel ? const _EmptyChannel() : _EmptyChat(peer: peer!))
                 : ListView.builder(
                     controller: _scrollController,
                     reverse: true,
@@ -270,7 +286,8 @@ class _ChatPageState extends State<ChatPage> {
                     itemBuilder: (context, index) {
                       final message = messages[index];
                       final newer = index == 0 ? null : messages[index - 1];
-                      final showDay = newer == null ||
+                      final showDay =
+                          newer == null ||
                           !_sameDay(newer.timestamp, message.timestamp);
                       return Column(
                         children: [
@@ -417,7 +434,9 @@ class _CompassStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final current = heading;
-    final rotation = current == null ? 0.0 : (bearing - current) * math.pi / 180;
+    final rotation = current == null
+        ? 0.0
+        : (bearing - current) * math.pi / 180;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -447,11 +466,7 @@ class _CompassStrip extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({
-    required this.message,
-    this.myLocation,
-    this.channel = false,
-  });
+  const _Bubble({required this.message, this.myLocation, this.channel = false});
 
   final ChatMessage message;
   final GeoPoint? myLocation;
@@ -469,21 +484,21 @@ class _Bubble extends StatelessWidget {
     final background = sos
         ? scheme.errorContainer
         : status
-            ? scheme.tertiaryContainer
-            : assistant
-                ? scheme.secondaryContainer
-                : outgoing
-                    ? (dark ? const Color(0xFF125C4B) : const Color(0xFFD9FDD3))
-                    : (dark ? const Color(0xFF1F2C33) : Colors.white);
+        ? scheme.tertiaryContainer
+        : assistant
+        ? scheme.secondaryContainer
+        : outgoing
+        ? (dark ? const Color(0xFF125C4B) : const Color(0xFFD9FDD3))
+        : (dark ? const Color(0xFF1F2C33) : Colors.white);
     final textColor = sos
         ? scheme.onErrorContainer
         : status
-            ? scheme.onTertiaryContainer
-            : assistant
-                ? scheme.onSecondaryContainer
-                : outgoing && dark
-                    ? Colors.white
-                    : scheme.onSurface;
+        ? scheme.onTertiaryContainer
+        : assistant
+        ? scheme.onSecondaryContainer
+        : outgoing && dark
+        ? Colors.white
+        : scheme.onSurface;
 
     return Align(
       alignment: outgoing ? Alignment.centerRight : Alignment.centerLeft,
@@ -517,7 +532,8 @@ class _Bubble extends StatelessWidget {
                   ),
                 ),
               ),
-            if (message.kind == MessageKind.location && message.location != null)
+            if (message.kind == MessageKind.location &&
+                message.location != null)
               _LocationContent(
                 message: message,
                 mine: myLocation,
@@ -624,22 +640,24 @@ class _LocationContent extends StatelessWidget {
     final geo = message.location!;
     final myPoint = mine;
     final distance = myPoint == null ? null : distanceMeters(myPoint, geo);
-    final direction =
-        myPoint == null ? null : cardinalShort(bearingDegrees(myPoint, geo));
+    final direction = myPoint == null
+        ? null
+        : cardinalShort(bearingDegrees(myPoint, geo));
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () async {
         await Clipboard.setData(
           ClipboardData(
-            text: '${geo.lat.toStringAsFixed(6)}, '
+            text:
+                '${geo.lat.toStringAsFixed(6)}, '
                 '${geo.lon.toStringAsFixed(6)}',
           ),
         );
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Coordenadas copiadas')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Coordenadas copiadas')));
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -781,10 +799,9 @@ class _EmptyChannel extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'El canal de la malla',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(
@@ -843,8 +860,8 @@ class _ChannelComposer extends StatelessWidget {
                           status == QuickStatus.ok
                               ? Icons.check_circle_outline
                               : status == QuickStatus.help
-                                  ? Icons.front_hand_outlined
-                                  : Icons.warning_amber_outlined,
+                              ? Icons.front_hand_outlined
+                              : Icons.warning_amber_outlined,
                           size: 16,
                         ),
                         label: Text(

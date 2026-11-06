@@ -15,13 +15,16 @@ class PowerService {
   /// Android 14 rechaza el servicio en primer plano y no se puede escanear.
   /// El tope de tiempo evita que la app se quede sin radio si la respuesta se
   /// pierde al recrearse la Activity.
-  static Future<void> requestPermissions() async {
-    if (!Platform.isAndroid) return;
+  static Future<bool> requestPermissions() async {
+    if (!Platform.isAndroid) return false;
     try {
-      await _channel
-          .invokeMethod<void>('requestPermissions')
-          .timeout(const Duration(seconds: 30), onTimeout: () {});
-    } catch (_) {}
+      final granted = await _channel
+          .invokeMethod<bool>('requestPermissions')
+          .timeout(const Duration(seconds: 30), onTimeout: () => null);
+      return granted ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// ¿Hay al menos un permiso de Bluetooth concedido?
@@ -38,10 +41,9 @@ class PowerService {
   static Future<bool> startForeground({String text = 'Malla activa'}) async {
     if (!Platform.isAndroid) return false;
     try {
-      final result = await _channel.invokeMethod<bool>(
-        'startForeground',
-        {'text': text},
-      );
+      final result = await _channel.invokeMethod<bool>('startForeground', {
+        'text': text,
+      });
       return result ?? false;
     } on PlatformException catch (error) {
       debugPrint('PowerService: ${error.message}');
@@ -77,10 +79,11 @@ class PowerService {
   }) async {
     if (!Platform.isAndroid) return;
     try {
-      await _channel.invokeMethod<void>(
-        'notifyContact',
-        {'name': name, 'peerId': peerId, 'body': body},
-      );
+      await _channel.invokeMethod<void>('notifyContact', {
+        'name': name,
+        'peerId': peerId,
+        'body': body,
+      });
     } catch (_) {}
   }
 
@@ -95,10 +98,11 @@ class PowerService {
   }) async {
     if (!Platform.isAndroid) return;
     try {
-      await _channel.invokeMethod<void>(
-        'notifyChannel',
-        {'title': title, 'body': body, 'sos': sos},
-      );
+      await _channel.invokeMethod<void>('notifyChannel', {
+        'title': title,
+        'body': body,
+        'sos': sos,
+      });
     } catch (_) {}
   }
 

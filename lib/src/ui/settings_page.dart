@@ -44,18 +44,13 @@ class SettingsPage extends StatelessWidget {
                         );
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Identidad copiada'),
-                            ),
+                            const SnackBar(content: Text('Identidad copiada')),
                           );
                         }
                       },
                       child: Text(
                         'ID ${node.nodeShortId} · identidad X25519',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: scheme.primary,
-                        ),
+                        style: TextStyle(fontSize: 12, color: scheme.primary),
                       ),
                     ),
                   ],
@@ -129,9 +124,9 @@ class SettingsPage extends StatelessWidget {
                   await node.switchTransport(transport, demo: value);
                   if (!context.mounted) return;
                   if (!value && node.error != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(node.error!)),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(node.error!)));
                   }
                 },
                 title: const Text('Modo demo'),
@@ -237,7 +232,7 @@ class SettingsPage extends StatelessWidget {
                 subtitle: Text(
                   node.relayMode
                       ? 'Repetidor activo · ${node.relayedCount} tramas '
-                          'reenviadas desde que abrió la app'
+                            'reenviadas desde que abrió la app'
                       : 'Con este modo la radio descansa entre ventanas.',
                   style: const TextStyle(fontSize: 12),
                 ),
@@ -288,25 +283,29 @@ class SettingsPage extends StatelessWidget {
             children: const [
               _Bullet(
                 icon: Icons.lock_outline,
-                text: 'Se cifra con la clave pública del destinatario '
+                text:
+                    'Se cifra con la clave pública del destinatario '
                     '(X25519 + AES-256-GCM). Quien repite no puede leerlo.',
               ),
               SizedBox(height: 10),
               _Bullet(
                 icon: Icons.alt_route,
-                text: 'Salta de teléfono en teléfono con TTL 3 y '
+                text:
+                    'Salta de teléfono en teléfono con TTL 3 y '
                     'deduplicación para no inundar la banda.',
               ),
               SizedBox(height: 10),
               _Bullet(
                 icon: Icons.outbox_outlined,
-                text: 'Si el destinatario no está cerca, el mensaje queda en '
+                text:
+                    'Si el destinatario no está cerca, el mensaje queda en '
                     'cola hasta 24 h y se reintenta en cada enlace nuevo.',
               ),
               SizedBox(height: 10),
               _Bullet(
                 icon: Icons.battery_charging_full,
-                text: 'La radio solo escucha en ventanas cortas. '
+                text:
+                    'La radio solo escucha en ventanas cortas. '
                     'El advertising se mantiene porque gasta mucho menos.',
               ),
             ],
@@ -335,7 +334,7 @@ class SettingsPage extends StatelessWidget {
         const SizedBox(height: 18),
         Center(
           child: Text(
-            'SinRed 0.5.0 · malla BLE sin internet',
+            'SinRed 0.5.1 · malla BLE sin internet',
             style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
           ),
         ),
@@ -388,29 +387,38 @@ class SettingsPage extends StatelessWidget {
 
   Future<void> _editName(BuildContext context, MeshNode node) async {
     final controller = TextEditingController(text: node.displayName);
-    final value = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Tu nombre en la malla'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 24,
-          decoration: const InputDecoration(hintText: 'Cómo te verán los demás'),
+    final String? value;
+    try {
+      value = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Tu nombre en la malla'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 24,
+            decoration: const InputDecoration(
+              hintText: 'Cómo te verán los demás',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Guardar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      // El controlador se crea para el diálogo y se libera con él: dejarlo vivo
+      // era una fuga por cada cambio de nombre.
+      controller.dispose();
+    }
     if (value != null && value.isNotEmpty) {
       node.setDisplayName(value);
     }
@@ -424,15 +432,14 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Text(
-          title,
-          style: Theme.of(context)
-              .textTheme
-              .titleSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
-        ),
-      );
+    padding: const EdgeInsets.only(left: 4),
+    child: Text(
+      title,
+      style: Theme.of(
+        context,
+      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+    ),
+  );
 }
 
 class _Bullet extends StatelessWidget {

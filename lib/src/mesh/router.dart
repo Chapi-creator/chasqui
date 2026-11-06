@@ -14,27 +14,16 @@ import '../core/models.dart';
 import 'dedup_cache.dart';
 import 'outbox.dart';
 
-typedef FrameBroadcaster = Future<void> Function(
-  MeshFrame frame, {
-  String? exceptLink,
-});
-typedef MessageReceived = Future<void> Function(
-  PeerRecord from,
-  String text,
-  int hops,
-);
+typedef FrameBroadcaster =
+    Future<void> Function(MeshFrame frame, {String? exceptLink});
+typedef MessageReceived =
+    Future<void> Function(PeerRecord from, String text, int hops);
 typedef AckReceived = void Function(String frameKey, String fromPeerId);
 typedef PresenceReceived = void Function(PeerRecord peer, String? linkId);
-typedef LocationReceived = void Function(
-  PeerRecord from,
-  GeoPoint point,
-  int hops,
-);
-typedef ChannelReceived = void Function(
-  String sourceId,
-  ChannelMessage message,
-  int hops,
-);
+typedef LocationReceived =
+    void Function(PeerRecord from, GeoPoint point, int hops);
+typedef ChannelReceived =
+    void Function(String sourceId, ChannelMessage message, int hops);
 
 /// Lógica de red pura (sin Bluetooth): decide qué hacer con cada trama.
 ///
@@ -51,10 +40,11 @@ class MeshRouter {
     this.onPresence,
     this.onLocation,
     this.onChannel,
+    this.maxPeers = 500,
     DedupCache? dedup,
     Outbox? outbox,
-  })  : dedup = dedup ?? DedupCache(),
-        outbox = outbox ?? Outbox();
+  }) : dedup = dedup ?? DedupCache(),
+       outbox = outbox ?? Outbox();
 
   final NodeIdentity identity;
   final FrameBroadcaster broadcast;
@@ -82,10 +72,10 @@ class MeshRouter {
 
   /// Anuncio de presencia (barato: ~50–90 bytes, solo al conectar).
   MeshFrame presenceFrame(String displayName) => MeshFrame.presence(
-        source: Uint8List.fromList(identity.nodeId),
-        publicKey: identity.publicKey,
-        name: displayName,
-      );
+    source: Uint8List.fromList(identity.nodeId),
+    publicKey: identity.publicKey,
+    name: displayName,
+  );
 
   Future<MeshFrame> buildMessageFrame({
     required PeerRecord peer,
@@ -184,14 +174,14 @@ class MeshRouter {
   }
 
   MeshFrame buildAckFrame(MeshFrame original) => MeshFrame(
-        type: FrameType.ack,
-        id: randomBytes(16),
-        source: Uint8List.fromList(identity.nodeId),
-        destination: Uint8List.fromList(original.source),
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        payload: Uint8List.fromList(original.id),
-        ttl: 4,
-      );
+    type: FrameType.ack,
+    id: randomBytes(16),
+    source: Uint8List.fromList(identity.nodeId),
+    destination: Uint8List.fromList(original.source),
+    timestamp: DateTime.now().millisecondsSinceEpoch,
+    payload: Uint8List.fromList(original.id),
+    ttl: 4,
+  );
 
   /// Procesa un paquete recibido por [linkId].
   Future<void> handlePacket(Uint8List bytes, {String? linkId}) async {
@@ -210,11 +200,11 @@ class MeshRouter {
     // visto. Si lo marcara, el reenvío del emisor (misma id de trama) se
     // descartaría para siempre y el mensaje nunca se entregaría cuando su
     // anuncio de presencia llegara unos milisegundos después.
-    final isForMe = frame.destinationHex == identity.id &&
+    final isForMe =
+        frame.destinationHex == identity.id &&
         !peers.containsKey(frame.sourceHex);
     if (isForMe &&
-        (frame.type == FrameType.message ||
-            frame.type == FrameType.location)) {
+        (frame.type == FrameType.message || frame.type == FrameType.location)) {
       debugPrint('Malla: trama de nodo desconocido ${frame.sourceHex}');
       return;
     }
@@ -239,6 +229,7 @@ class MeshRouter {
   /// que decidirlo). El emisor puede ser desconocido: en una emergencia el
   /// aviso de un desconocido sigue siendo útil.
   Future<void> _handleChannel(MeshFrame frame, String? linkId) async {
+    var readable = false;
     try {
       final clear = await ChannelCrypto.open(
         sealed: frame.payload,
@@ -248,11 +239,17 @@ class MeshRouter {
       if (message == null) {
         debugPrint('Malla: mensaje de canal ilegible');
       } else {
+        readable = true;
         onChannel?.call(frame.sourceHex, message, frame.hops);
       }
     } catch (error) {
       debugPrint('Malla: canal no se pudo descifrar (${error.runtimeType})');
     }
+
+    // Una trama que ni nosotros podemos descifrar (basura o manipulada) no se
+    // repite: con TTL 5, reenviarla convertía cualquier ruido en una inundación
+    // de toda la malla sin que nadie pudiera leerlo.
+    if (!readable) return;
 
     if (frame.ttl > 1) {
       relayed += 1;
@@ -272,6 +269,7 @@ class MeshRouter {
     }
     if (existing == null) {
       peers[peer.id] = peer;
+      _trimPeers();
     } else {
       existing
         ..name = peer.name
@@ -338,7 +336,9 @@ class MeshRouter {
         peer.lastSeen = DateTime.now();
         onLocation?.call(peer, point, frame.hops);
       } catch (error) {
-        debugPrint('Malla: no se pudo descifrar la ubicación (${error.runtimeType})');
+        debugPrint(
+          'Malla: no se pudo descifrar la ubicación (${error.runtimeType})',
+        );
       }
       return;
     }
@@ -379,7 +379,9 @@ class MeshRouter {
     final nameLength = frame.payload[0];
     if (frame.payload.length != 33 + nameLength) return null;
     final publicKey = frame.payload.sublist(1, 33);
-    final name = utf8.decode(frame.payload.sublist(33), allowMalformed: true).trim();
+    final name = utf8
+        .decode(frame.payload.sublist(33), allowMalformed: true)
+        .trim();
     if (name.isEmpty) return null;
     // El id debe ser el prefijo SHA-256 de la clave: evita suplantaciones.
     if (!await NodeIdentity.matchesNodeId(publicKey, frame.source)) {
@@ -393,6 +395,25 @@ class MeshRouter {
       lastSeen: DateTime.now(),
       hops: frame.hops,
     );
+  }
+
+  /// Tope de nodos guardados en memoria.
+  ///
+  /// En una plaza llena con la app abierta se acumulaban cientos de nodos
+  /// efímeros: la lista crecía sin parar y el estado se reescribía entero cada
+  /// pocos segundos. Se expulsan primero los que llevan más tiempo sin dar
+  /// señales, y nunca un contacto de la libreta.
+  final int maxPeers;
+
+  void _trimPeers() {
+    if (peers.length <= maxPeers) return;
+    final removable =
+        peers.values.where((p) => !p.isContact && p.id != identity.id).toList()
+          ..sort((a, b) => a.lastSeen.compareTo(b.lastSeen));
+    for (final peer in removable) {
+      if (peers.length <= maxPeers) break;
+      peers.remove(peer.id);
+    }
   }
 
   bool _isFresh(MeshFrame frame) {

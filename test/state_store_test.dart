@@ -91,8 +91,26 @@ void main() {
     expect(files.single, endsWith('sinred_state.json'));
   });
 
+  test('guardados simultáneos no dejan el archivo roto ni el .tmp', () async {
+    // El temporizador de 2 s y un cierre de la app pueden escribir a la vez:
+    // con un solo archivo temporal eso truncaba el JSON o rompía el rename.
+    await Future.wait(
+      List.generate(25, (i) => store.save(snapshot(name: 'nodo-$i'))),
+    );
+
+    final loaded = await store.load();
+    expect(loaded, isNotNull);
+    expect(loaded!.displayName, startsWith('nodo-'));
+    expect(loaded.privateKey, hasLength(32));
+
+    final files = directory.listSync().map((e) => e.path).toList();
+    expect(files, hasLength(1), reason: 'no debe quedar el .tmp');
+  });
+
   test('un archivo corrupto se detecta en vez de explotar', () async {
-    final file = File('${directory.path}${Platform.pathSeparator}sinred_state.json');
+    final file = File(
+      '${directory.path}${Platform.pathSeparator}sinred_state.json',
+    );
     await file.writeAsString('{"v": 1, "name": ');
 
     expect(await store.load(), isNull);
@@ -107,17 +125,21 @@ void main() {
       timestamp: 1700000000000,
       payload: randomBytes(8),
     );
-    final file = File('${directory.path}${Platform.pathSeparator}sinred_state.json');
-    await file.writeAsString(jsonEncode({
-      'v': 1,
-      'name': 'Viejo',
-      'key': base64Encode(randomBytes(32)),
-      'messages': <dynamic>[],
-      'peers': <dynamic>[],
-      'outbox': [base64Encode(frame.encode())],
-      'mode': 'rapido',
-      'demo': false,
-    }));
+    final file = File(
+      '${directory.path}${Platform.pathSeparator}sinred_state.json',
+    );
+    await file.writeAsString(
+      jsonEncode({
+        'v': 1,
+        'name': 'Viejo',
+        'key': base64Encode(randomBytes(32)),
+        'messages': <dynamic>[],
+        'peers': <dynamic>[],
+        'outbox': [base64Encode(frame.encode())],
+        'mode': 'rapido',
+        'demo': false,
+      }),
+    );
 
     final loaded = await store.load();
 

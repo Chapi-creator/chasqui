@@ -45,9 +45,7 @@ class ContactsPage extends StatelessWidget {
                       children: [
                         Text(
                           'Agrega por QR',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
+                          style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.w600),
                         ),
                         Text(
@@ -97,10 +95,9 @@ class ContactsPage extends StatelessWidget {
           children: [
             Text(
               'Contactos',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const Spacer(),
             Text(
@@ -118,7 +115,11 @@ class ContactsPage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Column(
                 children: [
-                  Icon(Icons.contacts_outlined, size: 40, color: scheme.primary),
+                  Icon(
+                    Icons.contacts_outlined,
+                    size: 40,
+                    color: scheme.primary,
+                  ),
                   const SizedBox(height: 10),
                   const Text(
                     'Todavía no tienes contactos',
@@ -195,8 +196,8 @@ class _ContactTile extends StatelessWidget {
     final subtitle = !inRange
         ? 'Sin señal · te avisamos cuando aparezca'
         : contact.directLink
-            ? 'Al alcance · enlace directo$suffix'
-            : 'Al alcance · ${contact.hops} saltos$suffix';
+        ? 'Al alcance · enlace directo$suffix'
+        : 'Al alcance · ${contact.hops} saltos$suffix';
 
     return InfoCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -217,21 +218,24 @@ class _ContactTile extends StatelessWidget {
                   '$subtitle · ${contact.shortCode}',
                   style: TextStyle(
                     fontSize: 11,
-                    color: inRange
-                        ? scheme.primary
-                        : scheme.onSurfaceVariant,
+                    color: inRange ? scheme.primary : scheme.onSurfaceVariant,
                   ),
                 ),
               ],
             ),
           ),
-          if (inRange) SignalBars(rssi: contact.rssi),
+          // Un contacto alcanzable por 2 saltos no tiene señal propia: pintar
+          // barras llenas ahí era una mentira visual.
+          if (inRange)
+            SignalBars(rssi: contact.rssi, active: contact.directLink),
           IconButton(
             tooltip: 'Escribir',
             onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => ChatPage(peerId: contact.id),
-              ));
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ChatPage(peerId: contact.id),
+                ),
+              );
             },
             icon: const Icon(Icons.chat_bubble_outline),
           ),

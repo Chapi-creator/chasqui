@@ -31,11 +31,19 @@ class Outbox {
   Outbox({
     this.maxMessages = 200,
     this.maxRelay = 64,
+    this.maxChannel = 20,
     this.ttl = const Duration(hours: 24),
   });
 
   final int maxMessages;
   final int maxRelay;
+
+  /// Tope aparte para el canal abierto. Sus avisos no tienen ACK, así que
+  /// nunca “se confirman” y se quedan hasta caducar: si compartieran la cola
+  /// con los mensajes privados, una tarde de estados rápidos acabaría
+  /// expulsando mensajes reales sin entregar.
+  final int maxChannel;
+
   final Duration ttl;
 
   /// Espera base antes de reintentar un mensaje propio. Se duplica con cada
@@ -44,9 +52,12 @@ class Outbox {
   static const Duration retryBase = Duration(seconds: 30);
 
   final List<OutboxEntry> _own = <OutboxEntry>[];
+  final List<OutboxEntry> _channel = <OutboxEntry>[];
   final List<OutboxEntry> _relay = <OutboxEntry>[];
 
-  List<OutboxEntry> get ownPending => List.unmodifiable(_own);
+  /// Lo que este nodo envió y aún puede reintentar: privados primero.
+  List<OutboxEntry> get ownPending =>
+      List.unmodifiable(<OutboxEntry>[..._own, ..._channel]);
   List<MeshFrame> get relayFrames =>
       List.unmodifiable(_relay.map((e) => e.frame));
 
@@ -54,6 +65,13 @@ class Outbox {
     _own.removeWhere((e) => e.key == frame.dedupKey);
     _own.add(OutboxEntry(frame: frame, queuedAt: DateTime.now()));
     _trim(_own, maxMessages);
+  }
+
+  /// Aviso del canal abierto (estado o SOS): cola propia, sin ACK.
+  void enqueueChannel(MeshFrame frame) {
+    _channel.removeWhere((e) => e.key == frame.dedupKey);
+    _channel.add(OutboxEntry(frame: frame, queuedAt: DateTime.now()));
+    _trim(_channel, maxChannel);
   }
 
   void enqueueRelay(MeshFrame frame) {
@@ -64,7 +82,7 @@ class Outbox {
 
   void markAttempt(String key, {DateTime? at}) {
     final now = at ?? DateTime.now();
-    for (final entry in _own) {
+    for (final entry in <OutboxEntry>[..._own, ..._channel]) {
       if (entry.key == key) {
         entry.attempts += 1;
         entry.lastAttempt = now;
@@ -89,11 +107,15 @@ class Outbox {
 
   List<OutboxEntry> dueForRetry({DateTime? now}) {
     final at = now ?? DateTime.now();
-    return _own.where((e) => isDue(e, now: at)).toList();
+    return <OutboxEntry>[
+      ..._own,
+      ..._channel,
+    ].where((e) => isDue(e, now: at)).toList();
   }
 
   void remove(String key) {
     _own.removeWhere((e) => e.key == key);
+    _channel.removeWhere((e) => e.key == key);
     _relay.removeWhere((e) => e.key == key);
   }
 
@@ -102,16 +124,26 @@ class Outbox {
   List<String> pruneExpired({DateTime? now}) {
     final at = now ?? DateTime.now();
     final expired = <String>[];
-    _own.removeWhere((e) {
-      final isExpired = at.difference(e.queuedAt) > ttl;
-      if (isExpired) expired.add(e.key);
-      return isExpired;
-    });
+    bool prune(List<OutboxEntry> list) {
+      var removed = false;
+      list.removeWhere((e) {
+        final isExpired = at.difference(e.queuedAt) > ttl;
+        if (isExpired) {
+          expired.add(e.key);
+          removed = true;
+        }
+        return isExpired;
+      });
+      return removed;
+    }
+
+    prune(_own);
+    prune(_channel);
     _relay.removeWhere((e) => at.difference(e.queuedAt) > ttl);
     return expired;
   }
 
-  int get length => _own.length + _relay.length;
+  int get length => _own.length + _channel.length + _relay.length;
 
   void _trim(List<OutboxEntry> list, int max) {
     while (list.length > max) {
@@ -120,11 +152,14 @@ class Outbox {
   }
 
   List<Map<String, dynamic>> encode() => [
-        ..._own.map((e) => {
-              'q': e.queuedAt.millisecondsSinceEpoch,
-              'b': base64Encode(e.frame.encode()),
-            }),
-      ];
+    ..._own.map(_encodeEntry),
+    ..._channel.map((e) => _encodeEntry(e)..['c'] = true),
+  ];
+
+  static Map<String, dynamic> _encodeEntry(OutboxEntry entry) => {
+    'q': entry.queuedAt.millisecondsSinceEpoch,
+    'b': base64Encode(entry.frame.encode()),
+  };
 
   /// Recupera lo pendiente conservando **cuándo** se encoló: si se reiniciara
   /// la fecha en cada arranque, un mensaje de hace una semana se reintentaría
@@ -138,11 +173,19 @@ class Outbox {
           (item['q'] as num).toInt(),
         );
         if (at.difference(queuedAt) > ttl) continue;
-        _own.add(OutboxEntry(frame: frame, queuedAt: queuedAt));
+        final entry = OutboxEntry(frame: frame, queuedAt: queuedAt);
+        if (item['c'] == true) {
+          _channel.removeWhere((e) => e.key == entry.key);
+          _channel.add(entry);
+        } else {
+          _own.removeWhere((e) => e.key == entry.key);
+          _own.add(entry);
+        }
       } catch (error) {
         debugPrint('Outbox: entrada corrupta ignorada ($error)');
       }
     }
     _trim(_own, maxMessages);
+    _trim(_channel, maxChannel);
   }
 }

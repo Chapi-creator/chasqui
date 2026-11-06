@@ -8,7 +8,8 @@ class DedupCache {
   final int maxEntries;
   final Duration ttl;
 
-  final LinkedHashMap<String, DateTime> _seen = LinkedHashMap<String, DateTime>();
+  final LinkedHashMap<String, DateTime> _seen =
+      LinkedHashMap<String, DateTime>();
 
   /// Marca la trama como vista. Devuelve false si ya la habíamos procesado.
   bool markSeen(String key, {DateTime? now}) {
@@ -26,6 +27,10 @@ class DedupCache {
   bool contains(String key) => _seen.containsKey(key);
 
   int get length => _seen.length;
+
+  /// Se vacía al cambiar de radio: las tramas vistas por un transporte no
+  /// dicen nada del otro, y así no se descarta tráfico legítimo tras el cambio.
+  void clear() => _seen.clear();
 
   void _prune(DateTime now) {
     _seen.removeWhere((_, at) => now.difference(at) > ttl);

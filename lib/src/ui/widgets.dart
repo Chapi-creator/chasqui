@@ -29,7 +29,9 @@ class PeerAvatar extends StatelessWidget {
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty)
         .take(2)
-        .map((w) => w.substring(0, 1).toUpperCase())
+        // Por grafemas: con substring(0, 1) un nombre que empieza con emoji
+        // dejaba medio carácter y se veía un rombo en el avatar.
+        .map((w) => w.characters.first.toUpperCase())
         .join();
     final color = _palette[name.hashCode.abs() % _palette.length];
     return Stack(
@@ -87,7 +89,11 @@ class DeliveryTicks extends StatelessWidget {
       case MessageStatus.delivered:
         return Icon(Icons.done_all, size: 15, color: const Color(0xFF46C0FF));
       case MessageStatus.failed:
-        return const Icon(Icons.error_outline, size: 15, color: Color(0xFFE0645B));
+        return const Icon(
+          Icons.error_outline,
+          size: 15,
+          color: Color(0xFFE0645B),
+        );
     }
   }
 }
@@ -104,12 +110,12 @@ class SignalBars extends StatelessWidget {
     final level = rssi == null
         ? (active ? 3 : 0)
         : rssi! > -60
-            ? 4
-            : rssi! > -72
-                ? 3
-                : rssi! > -85
-                    ? 2
-                    : 1;
+        ? 4
+        : rssi! > -72
+        ? 3
+        : rssi! > -85
+        ? 2
+        : 1;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,

@@ -32,13 +32,13 @@ class MeshNode extends ChangeNotifier {
     bool shareLocation = false,
     bool showProximity = false,
     bool relayMode = false,
-  })  : _transport = transport,
-        _displayName = displayName,
-        _radioMode = mode,
-        _useDemo = useDemo,
-        _shareLocation = shareLocation,
-        _showProximity = showProximity,
-        _relayMode = relayMode {
+  }) : _transport = transport,
+       _displayName = displayName,
+       _radioMode = mode,
+       _useDemo = useDemo,
+       _shareLocation = shareLocation,
+       _showProximity = showProximity,
+       _relayMode = relayMode {
     _router = MeshRouter(
       identity: identity,
       broadcast: _broadcast,
@@ -215,8 +215,9 @@ class MeshNode extends ChangeNotifier {
     if (contactCodeOf(identity.id) == code) return AddContactResult.ownCode;
 
     final matches = _router.peers.values
-        .where((peer) =>
-            peer.id != identity.id && contactCodeOf(peer.id) == code)
+        .where(
+          (peer) => peer.id != identity.id && contactCodeOf(peer.id) == code,
+        )
         .toList();
     if (matches.isEmpty) return AddContactResult.notFound;
     if (matches.length > 1) return AddContactResult.ambiguous;
@@ -281,7 +282,7 @@ class MeshNode extends ChangeNotifier {
       _error = error is StateError ? error.message : error.toString();
       debugPrint('MeshNode: radio no disponible ($error)');
     }
-    await    _scheduler.start();
+    await _scheduler.start();
     // Quien ya estaba al alcance al abrir la app no genera aviso: el usuario
     // está mirando la pantalla.
     _refreshReachability(notify: false);
@@ -341,6 +342,8 @@ class MeshNode extends ChangeNotifier {
     if (wasStarted) await stop();
     _transport = next;
     _useDemo = demo;
+    // Las tramas vistas por la radio anterior no dicen nada de la nueva.
+    _router.dedup.clear();
     _scheduler.setMode(_radioMode);
     if (wasStarted) {
       await start();
@@ -451,11 +454,13 @@ class MeshNode extends ChangeNotifier {
     if (!point.isValid) return;
     final previous = _myLocation;
     _myLocation = point;
-    final moved = previous == null ||
+    final moved =
+        previous == null ||
         distanceMeters(previous, point) >= locationMinMoveMeters;
-    if (!moved) return;
+    // La posición mostrada se refresca siempre; compartirla, solo si de verdad
+    // se movió (el GPS tiembla unos metros aunque el teléfono esté quieto).
     _notify();
-    if (_shareLocation) unawaited(shareLocationNow());
+    if (moved && _shareLocation) unawaited(shareLocationNow());
   }
 
   /// Activa o desactiva compartir la ubicación con los contactos.
@@ -522,10 +527,17 @@ class MeshNode extends ChangeNotifier {
 
   /// Petición de auxilio. Se guarda en cola y se reintenta porque sigue
   /// siendo útil si alguien llega al rato.
-  Future<void> sendSos({String text = 'Necesito ayuda'}) =>
-      _sendChannel(text, ChannelKind.sos);
+  ///
+  /// [point] permite adjuntar una posición recién pedida al GPS cuando la app
+  /// aún no tenía ninguna (compartir ubicación apagado, app recién abierta).
+  Future<void> sendSos({String text = 'Necesito ayuda', GeoPoint? point}) =>
+      _sendChannel(text, ChannelKind.sos, point: point);
 
-  Future<void> _sendChannel(String text, ChannelKind kind) async {
+  Future<void> _sendChannel(
+    String text,
+    ChannelKind kind, {
+    GeoPoint? point,
+  }) async {
     final clean = clampUtf8Bytes(text.trim(), ChannelMessage.maxTextBytes);
     if (clean.isEmpty) return;
     final message = ChannelMessage(
@@ -533,28 +545,30 @@ class MeshNode extends ChangeNotifier {
       text: clean,
       kind: kind,
       battery: _scheduler.batteryLevel,
-      point: kind == ChannelKind.sos ? _myLocation : null,
+      point: kind == ChannelKind.sos ? (point ?? _myLocation) : null,
     );
     final frame = await _router.buildChannelFrame(message);
     final hasLinks = _transport.connectedLinks > 0;
-    _messages.add(ChatMessage(
-      id: frame.idHex,
-      peerId: channelId,
-      outgoing: true,
-      text: clean,
-      timestamp: DateTime.now(),
-      status: hasLinks
-          ? MessageStatus.sent
-          : kind == ChannelKind.message
-              ? MessageStatus.failed
-              : MessageStatus.queued,
-      kind: _kindOf(kind),
-      senderName: _displayName,
-    ));
+    _appendMessage(
+      ChatMessage(
+        id: frame.idHex,
+        peerId: channelId,
+        outgoing: true,
+        text: clean,
+        timestamp: DateTime.now(),
+        status: hasLinks
+            ? MessageStatus.sent
+            : kind == ChannelKind.message
+            ? MessageStatus.failed
+            : MessageStatus.queued,
+        kind: _kindOf(kind),
+        senderName: _displayName,
+      ),
+    );
     // Un aviso normal sin nadie cerca no se guarda: un boletín viejo engaña.
     // Los estados y el SOS sí: "estoy atrapado aquí" sigue sirviendo mañana.
     if (kind != ChannelKind.message) {
-      _router.outbox.enqueueOwn(frame);
+      _router.outbox.enqueueChannel(frame);
     }
     await _broadcast(frame);
     _notify();
@@ -562,10 +576,10 @@ class MeshNode extends ChangeNotifier {
   }
 
   static MessageKind _kindOf(ChannelKind kind) => switch (kind) {
-        ChannelKind.message => MessageKind.text,
-        ChannelKind.status => MessageKind.status,
-        ChannelKind.sos => MessageKind.sos,
-      };
+    ChannelKind.message => MessageKind.text,
+    ChannelKind.status => MessageKind.status,
+    ChannelKind.sos => MessageKind.sos,
+  };
 
   void _handleChannel(String sourceId, ChannelMessage message, int hops) {
     final peer = _router.peers[sourceId];
@@ -575,44 +589,46 @@ class MeshNode extends ChangeNotifier {
     if (peer != null) peer.lastSeen = DateTime.now();
 
     final now = DateTime.now();
-    _messages.add(ChatMessage(
-      id: '${now.microsecondsSinceEpoch}-canal-${_messages.length}',
-      peerId: channelId,
-      outgoing: false,
-      text: message.text,
-      timestamp: now,
-      status: MessageStatus.delivered,
-      hops: hops,
-      kind: _kindOf(message.kind),
-      location: message.point,
-      senderName: name,
-    ));
+    _appendMessage(
+      ChatMessage(
+        id: '${now.microsecondsSinceEpoch}-canal-${_messages.length}',
+        peerId: channelId,
+        outgoing: false,
+        text: message.text,
+        timestamp: now,
+        status: MessageStatus.delivered,
+        hops: hops,
+        kind: _kindOf(message.kind),
+        location: message.point,
+        senderName: name,
+      ),
+    );
 
     final point = message.point;
     if (point != null && _showProximity) {
-      _messages.add(ChatMessage(
-        id: '${now.microsecondsSinceEpoch}-canal-bot-${_messages.length}',
-        peerId: channelId,
-        outgoing: false,
-        text: describeProximity(
-          mine: _myLocation,
-          theirs: point,
-          name: name,
+      _appendMessage(
+        ChatMessage(
+          id: '${now.microsecondsSinceEpoch}-canal-bot-${_messages.length}',
+          peerId: channelId,
+          outgoing: false,
+          text: describeProximity(mine: _myLocation, theirs: point, name: name),
+          timestamp: now,
+          status: MessageStatus.delivered,
+          kind: MessageKind.assistant,
+          senderName: name,
         ),
-        timestamp: now,
-        status: MessageStatus.delivered,
-        kind: MessageKind.assistant,
-        senderName: name,
-      ));
+      );
     }
 
     if (message.kind != ChannelKind.message) {
-      _channelAlerts.add(ChannelAlert(
-        name: name,
-        text: message.text,
-        kind: message.kind,
-        hops: hops,
-      ));
+      _channelAlerts.add(
+        ChannelAlert(
+          name: name,
+          text: message.text,
+          kind: message.kind,
+          hops: hops,
+        ),
+      );
     }
     _notify();
     _scheduleSave();
@@ -626,7 +642,10 @@ class MeshNode extends ChangeNotifier {
       if (!peer.isContact || peer.id == identity.id) continue;
       if (!isReachable(peer)) continue;
       try {
-        final frame = await _router.buildLocationFrame(peer: peer, point: point);
+        final frame = await _router.buildLocationFrame(
+          peer: peer,
+          point: point,
+        );
         await _broadcast(frame);
       } catch (error) {
         debugPrint('Ubicación: no se pudo enviar a ${peer.shortCode} ($error)');
@@ -645,16 +664,18 @@ class MeshNode extends ChangeNotifier {
 
     final frame = await _router.buildLocationFrame(peer: target, point: geo);
     final hasLinks = _transport.connectedLinks > 0;
-    _messages.add(ChatMessage(
-      id: frame.idHex,
-      peerId: peerId,
-      outgoing: true,
-      text: 'Mi ubicación',
-      timestamp: DateTime.now(),
-      status: hasLinks ? MessageStatus.sent : MessageStatus.failed,
-      kind: MessageKind.location,
-      location: geo,
-    ));
+    _appendMessage(
+      ChatMessage(
+        id: frame.idHex,
+        peerId: peerId,
+        outgoing: true,
+        text: 'Mi ubicación',
+        timestamp: DateTime.now(),
+        status: hasLinks ? MessageStatus.sent : MessageStatus.failed,
+        kind: MessageKind.location,
+        location: geo,
+      ),
+    );
     await _broadcast(frame);
     _notify();
     _scheduleSave();
@@ -735,14 +756,16 @@ class MeshNode extends ChangeNotifier {
     if (clean.isEmpty || target == null) return;
 
     final frame = await _router.buildMessageFrame(peer: target, text: clean);
-    _messages.add(ChatMessage(
-      id: frame.idHex,
-      peerId: peerId,
-      outgoing: true,
-      text: clean,
-      timestamp: DateTime.now(),
-      status: MessageStatus.queued,
-    ));
+    _appendMessage(
+      ChatMessage(
+        id: frame.idHex,
+        peerId: peerId,
+        outgoing: true,
+        text: clean,
+        timestamp: DateTime.now(),
+        status: MessageStatus.queued,
+      ),
+    );
     _router.outbox.enqueueOwn(frame);
     await _broadcast(frame);
     if (_transport.connectedLinks > 0) {
@@ -756,9 +779,11 @@ class MeshNode extends ChangeNotifier {
 
   void _subscribeToTransport() {
     _subscriptions
-      ..add(_transport.inbound.listen((packet) {
-        unawaited(_router.handlePacket(packet.bytes, linkId: packet.linkId));
-      }))
+      ..add(
+        _transport.inbound.listen((packet) {
+          unawaited(_router.handlePacket(packet.bytes, linkId: packet.linkId));
+        }),
+      )
       ..add(_transport.linkEvents.listen(_handleLinkEvent));
   }
 
@@ -821,15 +846,17 @@ class MeshNode extends ChangeNotifier {
   }
 
   Future<void> _handleIncoming(PeerRecord from, String text, int hops) async {
-    _messages.add(ChatMessage(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      peerId: from.id,
-      outgoing: false,
-      text: text,
-      timestamp: DateTime.now(),
-      status: MessageStatus.delivered,
-      hops: hops,
-    ));
+    _appendMessage(
+      ChatMessage(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        peerId: from.id,
+        outgoing: false,
+        text: text,
+        timestamp: DateTime.now(),
+        status: MessageStatus.delivered,
+        hops: hops,
+      ),
+    );
     _notify();
     _scheduleSave();
   }
@@ -837,32 +864,36 @@ class MeshNode extends ChangeNotifier {
   void _handleLocation(PeerRecord from, GeoPoint point, int hops) {
     from.location = point;
     final now = DateTime.now();
-    _messages.add(ChatMessage(
-      id: '${now.microsecondsSinceEpoch}-geo',
-      peerId: from.id,
-      outgoing: false,
-      text: 'Ubicación compartida',
-      timestamp: now,
-      status: MessageStatus.delivered,
-      hops: hops,
-      kind: MessageKind.location,
-      location: point,
-    ));
-    // El "asistente" es aritmética local: sin modelos, sin red, sin cuentas.
-    if (_showProximity) {
-      _messages.add(ChatMessage(
-        id: '${now.microsecondsSinceEpoch}-bot',
+    _appendMessage(
+      ChatMessage(
+        id: '${now.microsecondsSinceEpoch}-geo',
         peerId: from.id,
         outgoing: false,
-        text: describeProximity(
-          mine: _myLocation,
-          theirs: point,
-          name: from.name,
-        ),
+        text: 'Ubicación compartida',
         timestamp: now,
         status: MessageStatus.delivered,
-        kind: MessageKind.assistant,
-      ));
+        hops: hops,
+        kind: MessageKind.location,
+        location: point,
+      ),
+    );
+    // El "asistente" es aritmética local: sin modelos, sin red, sin cuentas.
+    if (_showProximity) {
+      _appendMessage(
+        ChatMessage(
+          id: '${now.microsecondsSinceEpoch}-bot',
+          peerId: from.id,
+          outgoing: false,
+          text: describeProximity(
+            mine: _myLocation,
+            theirs: point,
+            name: from.name,
+          ),
+          timestamp: now,
+          status: MessageStatus.delivered,
+          kind: MessageKind.assistant,
+        ),
+      );
     }
     _notify();
     _scheduleSave();
@@ -873,6 +904,20 @@ class MeshNode extends ChangeNotifier {
     _markStatus(frameId, MessageStatus.delivered);
     _notify();
     _scheduleSave();
+  }
+
+  /// Tope del historial en memoria y en disco.
+  ///
+  /// Sin tope, el archivo de estado se reescribe entero cada 2 s con todo el
+  /// historial: con miles de mensajes eso es jank en la UI y un JSON enorme
+  /// que puede tardar más de lo que el sistema deja vivir al proceso.
+  static const int maxHistory = 3000;
+
+  void _appendMessage(ChatMessage message) {
+    _messages.add(message);
+    if (_messages.length <= maxHistory) return;
+    final excess = _messages.length - maxHistory;
+    _messages.removeRange(0, excess);
   }
 
   void _markStatus(String messageId, MessageStatus status) {
@@ -902,7 +947,8 @@ class MeshNode extends ChangeNotifier {
       // todo cada 20 s solo gasta radio.
       for (final entry in _router.outbox.dueForRetry()) {
         _router.outbox.markAttempt(entry.key);
-        unawaited(_transport.send(entry.frame.encode()));
+        // Un fallo de radio no debe convertirse en un error asíncrono suelto.
+        unawaited(_broadcast(entry.frame));
       }
     }
     // Sin avisos aquí: solo actualiza quién sigue al alcance.
@@ -920,18 +966,20 @@ class MeshNode extends ChangeNotifier {
 
   void _saveNow() => unawaited(_persistNow());
 
-  Future<void> _persistNow() => store.save(AppSnapshot(
-        displayName: _displayName,
-        privateKey: identity.privateKeyBytes,
-        messages: List<ChatMessage>.from(_messages),
-        peers: _router.peers.values.toList(),
-        outbox: _router.outbox.encode(),
-        radioMode: _radioMode,
-        useDemo: _useDemo,
-        shareLocation: _shareLocation,
-        showProximity: _showProximity,
-        relayMode: _relayMode,
-      ));
+  Future<void> _persistNow() => store.save(
+    AppSnapshot(
+      displayName: _displayName,
+      privateKey: identity.privateKeyBytes,
+      messages: List<ChatMessage>.from(_messages),
+      peers: _router.peers.values.toList(),
+      outbox: _router.outbox.encode(),
+      radioMode: _radioMode,
+      useDemo: _useDemo,
+      shareLocation: _shareLocation,
+      showProximity: _showProximity,
+      relayMode: _relayMode,
+    ),
+  );
 
   void _notify() {
     if (_disposed) return;
@@ -986,4 +1034,3 @@ class MeshNode extends ChangeNotifier {
     super.dispose();
   }
 }
-

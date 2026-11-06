@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -44,35 +45,35 @@ class AppSnapshot {
   final bool relayMode;
 
   Map<String, dynamic> toJson() => {
-        'v': 1,
-        'name': displayName,
-        'key': base64Encode(privateKey),
-        'messages': messages.map((m) => m.toJson()).toList(),
-        'peers': peers.map((p) => p.toJson()).toList(),
-        'outbox': outbox,
-        'mode': radioMode.name,
-        'demo': useDemo,
-        'shareLocation': shareLocation,
-        'showProximity': showProximity,
-        'relayMode': relayMode,
-      };
+    'v': 1,
+    'name': displayName,
+    'key': base64Encode(privateKey),
+    'messages': messages.map((m) => m.toJson()).toList(),
+    'peers': peers.map((p) => p.toJson()).toList(),
+    'outbox': outbox,
+    'mode': radioMode.name,
+    'demo': useDemo,
+    'shareLocation': shareLocation,
+    'showProximity': showProximity,
+    'relayMode': relayMode,
+  };
 
   factory AppSnapshot.fromJson(Map<String, dynamic> json) => AppSnapshot(
-        displayName: json['name'] as String? ?? 'Yo',
-        privateKey: base64Decode(json['key'] as String),
-        messages: (json['messages'] as List<dynamic>? ?? [])
-            .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
-            .toList(),
-        peers: (json['peers'] as List<dynamic>? ?? [])
-            .map((p) => PeerRecord.fromJson(p as Map<String, dynamic>))
-            .toList(),
-        outbox: _decodeOutbox(json['outbox']),
-        radioMode: RadioMode.fromName(json['mode'] as String?),
-        useDemo: json['demo'] as bool? ?? false,
-        shareLocation: json['shareLocation'] as bool? ?? false,
-        showProximity: json['showProximity'] as bool? ?? false,
-        relayMode: json['relayMode'] as bool? ?? false,
-      );
+    displayName: json['name'] as String? ?? 'Yo',
+    privateKey: base64Decode(json['key'] as String),
+    messages: (json['messages'] as List<dynamic>? ?? [])
+        .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
+        .toList(),
+    peers: (json['peers'] as List<dynamic>? ?? [])
+        .map((p) => PeerRecord.fromJson(p as Map<String, dynamic>))
+        .toList(),
+    outbox: _decodeOutbox(json['outbox']),
+    radioMode: RadioMode.fromName(json['mode'] as String?),
+    useDemo: json['demo'] as bool? ?? false,
+    shareLocation: json['shareLocation'] as bool? ?? false,
+    showProximity: json['showProximity'] as bool? ?? false,
+    relayMode: json['relayMode'] as bool? ?? false,
+  );
 
   /// Acepta el formato actual (mapa con fecha) y el antiguo (base64 suelto)
   /// para no perder la cola de quien ya tenía estado guardado.
@@ -81,10 +82,7 @@ class AppSnapshot {
     final out = <Map<String, dynamic>>[];
     for (final item in list) {
       if (item is String) {
-        out.add({
-          'b': item,
-          'q': DateTime.now().millisecondsSinceEpoch,
-        });
+        out.add({'b': item, 'q': DateTime.now().millisecondsSinceEpoch});
       } else if (item is Map) {
         out.add(Map<String, dynamic>.from(item));
       }
@@ -95,12 +93,19 @@ class AppSnapshot {
 
 class StateStore {
   StateStore({this.fileName = 'sinred_state.json', Directory? directory})
-      : _directory = directory;
+    : _directory = directory;
 
   final String fileName;
 
   /// Solo para tests: permite escribir en un directorio temporal.
   final Directory? _directory;
+
+  /// Cerrojo de escritura: `save` puede llamarse mientras otra ya está en
+  /// curso (el temporizador de 2 s y un cierre de la app, por ejemplo). Dos
+  /// escrituras simultáneas al mismo temporal podían dejar el JSON truncado o
+  /// reventar el rename, y con él la identidad y los contactos.
+  bool _writing = false;
+  final List<Completer<void>> _waiting = <Completer<void>>[];
 
   Future<File?> _file() async {
     try {
@@ -116,7 +121,8 @@ class StateStore {
     final file = await _file();
     if (file == null || !await file.exists()) return null;
     try {
-      final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final json =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       return AppSnapshot.fromJson(json);
     } catch (error) {
       debugPrint('Estado corrupto, se reinicia ($error)');
@@ -128,6 +134,24 @@ class StateStore {
   /// muere a mitad, el archivo bueno sigue intacto en lugar de quedar un JSON
   /// truncado (lo que haría perder identidad, contactos e historial).
   Future<void> save(AppSnapshot snapshot) async {
+    if (_writing) {
+      // Se espera el turno con un Completer creado aquí: encadenar la escritura
+      // a una Future guardada de antes rompía al cambiar de zona (los tests de
+      // widgets cierran la app desde `runAsync` y el futuro nunca despertaba).
+      final turn = Completer<void>();
+      _waiting.add(turn);
+      await turn.future;
+    }
+    _writing = true;
+    try {
+      await _write(snapshot);
+    } finally {
+      _writing = false;
+      if (_waiting.isNotEmpty) _waiting.removeAt(0).complete();
+    }
+  }
+
+  Future<void> _write(AppSnapshot snapshot) async {
     final file = await _file();
     if (file == null) return;
     final temp = File('${file.path}.tmp');

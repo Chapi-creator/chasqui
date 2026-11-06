@@ -218,14 +218,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.5.0.apk`** (65 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.5.1.apk`** (65 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.5.0.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.0/SinRed-0.5.0.apk)
+[**SinRed-0.5.1.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.1/SinRed-0.5.1.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `c48bd362a5153066b0ae8b433fc9e62696ad3156e718a74b00a9d4cc8cdc5e86`.
+SHA-256: `50875fd24c98e3d3c5fa9cfb63963c0924d08939548dc2b969d86768c2846ad1`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -342,7 +342,40 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Licencia
+## 9. Qué cambió en la 0.5.1
+
+Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
+podía reproducir sin teléfono:
+
+- El estado se guarda en **una sola escritura a la vez**: el temporizador de 2 s
+  y el cierre de la app podían escribir el mismo archivo temporal a la vez y
+  dejar el JSON truncado (es decir, perder identidad, contactos e historial).
+- Si caía un enlace del rol periférico, el **escaneo no se reanudaba** cuando se
+  había detenido por el máximo de enlaces: la malla dejaba de ver teléfonos
+  nuevos hasta reiniciar la app.
+- El repetidor **ya no reenvía tramas del canal que no puede descifrar**: con
+  TTL 5, cualquier ruido o trama manipulada se multiplicaba por toda la malla.
+- Los estados y el SOS tienen **su propia cola de salida** (20 avisos, 24 h):
+  antes compartían la cola de 200 con los mensajes privados y una tarde de
+  "Estoy bien" podía expulsar mensajes reales sin entregar. Siguen
+  sobreviviendo al reinicio.
+- El **SOS pide una posición al GPS en el momento** si aún no había ninguna,
+  aunque compartir ubicación esté apagado (sin abrir diálogos de permiso a
+  mitad de la emergencia: si no está concedido, sale sin coordenadas).
+- **Topes de memoria y disco**: 3.000 mensajes de historial y 500 nodos
+  conocidos (nunca se descarta un contacto de la libreta). Antes el archivo de
+  estado crecía sin límite y se reescribía entero cada 2 s.
+- Los permisos de Bluetooth/notificaciones ahora responden **lo que el usuario
+  eligió**; el código nativo contestaba "concedido" aunque hubiera denegado.
+- La **brújula se comparte** entre chats apilados: cerrar el chat abierto desde
+  una notificación ya no congela la flecha del chat de abajo. Y no se acumula
+  un callback por rebuild.
+- Los contactos alcanzables **solo por 2 saltos** ya no muestran barras de
+  señal falsas en la lista.
+- Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
+  deja medio carácter. El diálogo de cambiar nombre libera su controlador.
+
+## 10. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),
