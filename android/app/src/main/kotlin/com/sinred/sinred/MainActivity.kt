@@ -252,6 +252,8 @@ class MainActivity : FlutterActivity() {
                     result.success(signals.setTorch(call.argument<Boolean>("on") ?: false))
                 "siren" ->
                     result.success(signals.setSiren(call.argument<Boolean>("on") ?: false))
+                "tone" ->
+                    result.success(signals.setMorseTone(call.argument<Boolean>("on") ?: false))
                 "keepAwake" -> {
                     signals.keepAwake(call.argument<Boolean>("on") ?: false)
                     result.success(true)

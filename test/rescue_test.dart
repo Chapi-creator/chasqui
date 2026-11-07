@@ -96,6 +96,106 @@ void main() {
     });
   });
 
+  group('texto libre a morse', () {
+    test('cada letra usa su código', () {
+      final message = MorseMessage.encode('Hola');
+      expect(message.text, 'HOLA');
+      expect(message.codes, ['....', '---', '.-..', '.-']);
+      expect(message.preview, '.... --- .-.. .-');
+      expect(message.skipped, isEmpty);
+      expect(message.markCount, 13);
+    });
+
+    test('las palabras se separan con pausa larga', () {
+      final message = MorseMessage.encode('  SOS   AUXILIO  ');
+      expect(message.text, 'SOS AUXILIO');
+      expect(message.preview, startsWith('... --- ... / '));
+      // Entre la S y la A de palabras distintas hay siete unidades apagadas.
+      final gap = message.steps.where(
+        (step) => !step.on && step.units == 7,
+      );
+      expect(gap, isNotEmpty);
+    });
+
+    test('tildes y minúsculas se pliegan; la ñ tiene su propio código', () {
+      final message = MorseMessage.encode('Médico añejo');
+      expect(message.text, 'MEDICO AÑEJO');
+      final index = message.text.indexOf('Ñ');
+      expect(message.codeAt(index), '--.--');
+      expect(message.skipped, isEmpty);
+    });
+
+    test('lo que no existe en morse se descarta y se informa', () {
+      final message = MorseMessage.encode('SOS ¿listos?');
+      // El signo de apertura no tiene código; el de cierre sí.
+      expect(message.skipped, ['¿']);
+      expect(message.text, 'SOS LISTOS?');
+      expect(message.preview.endsWith('..--..'), isTrue);
+    });
+
+    test('un mensaje vacío no genera tramos', () {
+      final message = MorseMessage.encode('   ');
+      expect(message.isEmpty, isTrue);
+      expect(message.preview, isEmpty);
+      expect(message.totalUnits, 0);
+    });
+
+    test('el espaciado sigue la convención: 1, 3 y 7 unidades', () {
+      final letter = MorseMessage.encode('E');
+      // Punto encendido y pausa de fin de mensaje.
+      expect(letter.steps.map((s) => s.units).toList(), [1, 7]);
+
+      final sameLetter = MorseMessage.encode('I'); // dos puntos
+      expect(sameLetter.steps.map((s) => s.units).toList(), [1, 1, 1, 7]);
+
+      final twoLetters = MorseMessage.encode('ET');
+      expect(twoLetters.steps.map((s) => s.units).toList(), [1, 3, 3, 7]);
+
+      final twoWords = MorseMessage.encode('E T');
+      expect(twoWords.steps.map((s) => s.units).toList(), [1, 7, 3, 7]);
+    });
+
+    test('cada tramo encendido sabe qué letra y qué elemento transmite', () {
+      final message = MorseMessage.encode('ET');
+      expect(message.markLetter(0), 0);
+      expect(message.markElement(0), 0);
+      // Las pausas no encienden nada.
+      expect(message.markLetter(1), isNull);
+      expect(message.markElement(1), isNull);
+      expect(message.markLetter(2), 1);
+      expect(message.markElement(2), 0);
+    });
+
+    test('la duración depende de la velocidad elegida', () {
+      final message = MorseMessage.encode('HOLA');
+      // 23 unidades de puntos y rayas, 9 pausas entre elementos, 9 entre
+      // letras y 7 de cierre.
+      expect(message.totalUnits, 48);
+      expect(message.duration(200), const Duration(milliseconds: 9600));
+      expect(message.duration(120), const Duration(milliseconds: 5760));
+    });
+
+    test('el mensaje se repite con el mismo motor del SOS', () {
+      fakeAsync((async) {
+        final message = MorseMessage.encode('ET');
+        final events = <int>[];
+        final blinker = SosBlinker(
+          onStep: (index, step) => events.add(index),
+          unitMs: 100,
+          steps: message.steps,
+        );
+        blinker.start();
+        async.elapse(const Duration(milliseconds: 1399));
+        expect(events, [0, 1, 2, 3]);
+        // Al cerrar la pasada vuelve al primer punto del mensaje.
+        async.elapse(const Duration(milliseconds: 1));
+        expect(events.length, 5);
+        expect(events.last, 0);
+        blinker.stop();
+      });
+    });
+  });
+
   group('contador de avistamiento', () {
     test('el texto crece con el tiempo', () {
       expect(formatSightingAge(const Duration(seconds: 5)), 'recién');

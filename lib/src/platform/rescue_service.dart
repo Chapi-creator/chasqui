@@ -49,6 +49,21 @@ class RescueService {
     }
   }
 
+  /// Pitido continuo para el morse escrito. Cada punto y cada raya lo prenden y
+  /// lo apagan. Devuelve false si el altavoz está ocupado.
+  static Future<bool> setTone(bool on) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final ok = await _channel.invokeMethod<bool>('tone', {'on': on});
+      return ok ?? false;
+    } on PlatformException catch (error) {
+      debugPrint('Pitido: ${error.message}');
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   /// Mantiene la pantalla encendida y a brillo máximo (y lo devuelve al salir).
   ///
   /// Solo se usa mientras hay algo que mostrarle al cielo: una pantalla blanca

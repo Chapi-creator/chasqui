@@ -47,6 +47,8 @@ ratos para no comerse la batería).
 - **Modo repetidor**: deja un teléfono enchufado reenviando lo de los demás.
 - **Brújula**: con un chat abierto, una flecha apunta hacia la otra persona.
 - **Compartir la app**: manda el APK por Quick Share o Bluetooth, sin internet.
+- **Telegrafía**: escribí cualquier frase y el teléfono la transmite en morse
+  con la pantalla, la linterna y un pitido: no solo el SOS.
 - **Panel de señales de rescate**: SOS en morse con pantalla y linterna, sirena,
   símbolos X / V / flecha y contador de tiempo desde el último avistamiento.
   Sin radio: sirve aunque la malla esté en reposo o sin Bluetooth.
@@ -278,14 +280,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.6.0.apk`** (66 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.7.0.apk`** (66 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.6.0.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.6.0/SinRed-0.6.0.apk)
+[**SinRed-0.7.0.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.7.0/SinRed-0.7.0.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `cc3b2ace978955e96d72ec5b4cfe6e184e8f713e074289732f166eaeb4359859`.
+SHA-256: `bfd4de508c6779704a036d1d1d1ab38fc36e762e3c8f932dc445540c37c2d4aa`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -415,7 +417,41 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.6.0
+## 9. Qué cambió en la 0.7.0
+
+**Telegrafía**: el morse deja de ser solo el SOS y pasa a servir para cualquier
+mensaje.
+
+<img src="assets/brand/telegrafia.png" width="120" alt="Emblema de Telegrafía">
+
+- **Escribís y se transmite**: el panel de rescate tiene una tarjeta nueva.
+  Escribís "ESTOY BIEN", "NECESITO AGUA" o una dirección y el teléfono lo
+  convierte al alfabeto morse completo (A-Z, ñ, números y signos) y lo manda
+  con la pantalla, la linterna y —si lo activás— un pitido de 700 Hz.
+- **Alfabeto real**: tildes y diéresis se pliegan a su letra (MÉDICO se manda
+  como MEDICO, que es lo que existe en morse), la **ñ** conserva su código
+  (`--.--`) y lo que no tiene equivalente se descarta avisando cuál fue.
+- **Ritmo correcto**: una unidad entre elementos de la misma letra, tres entre
+  letras y siete entre palabras, más una pausa larga al final para que la
+  repetición no pegue una palabra con la siguiente. Hay tres velocidades:
+  300 ms por punto (se lee de lejos), 200 (normal) y 120 (mensajes largos).
+- **Pantalla de transmisión**: ocupa todo con fondo blanco en los puntos y
+  rayas y casi negro en las pausas, muestra la letra en curso marcada y su
+  código con el elemento encendido subrayado. A brillo máximo y sin apagarse,
+  igual que el SOS, y se corta sola si la app pasa a segundo plano.
+- **Emblema propio** (`assets/brand/telegrafia.png`): punto, raya y punto con
+  halo, en la paleta del logo de SinRed.
+- **Sin tocar la radio y sin dependencias nuevas**: el pitido sale del mismo
+  canal nativo (`AudioTrack`) que ya usaba la sirena.
+
+Pruebas nuevas: el alfabeto, el plegado de tildes, el descarte de caracteres
+sin código, los espaciados de 1/3/7 unidades, la duración según velocidad y la
+repetición del mensaje con el mismo motor del SOS.
+
+Lo que sigue sin poder probarse sin teléfono: si el pitido se oye, si la
+linterna alumbra y si el brillo alcanza al sol.
+
+## 10. Qué cambió en la 0.6.0
 
 El teléfono como herramienta de rescate, sin radio de por medio:
 
@@ -449,7 +485,7 @@ El teléfono como herramienta de rescate, sin radio de por medio:
 Lo que no se puede probar sin un teléfono es la parte física: si la linterna
 alumbra, si la sirena suena fuerte y si el brillo forzado alcanza al sol.
 
-## 10. Qué cambió en la 0.5.5
+## 11. Qué cambió en la 0.5.5
 
 Identidad visual, sin tocar el funcionamiento de la malla:
 
@@ -464,7 +500,7 @@ Identidad visual, sin tocar el funcionamiento de la malla:
   blanco, también en Android 12+ (`windowSplashScreenBackground`).
 - El logo aparece en Ajustes, sobre la versión, y en este README.
 
-## 11. Qué cambió en la 0.5.4
+## 12. Qué cambió en la 0.5.4
 
 Todo para que la app gaste lo mínimo cuando la energía es el problema:
 
@@ -492,7 +528,7 @@ Todo para que la app gaste lo mínimo cuando la energía es el problema:
 Lo que no cambia: la app no puede medir su consumo real sin un teléfono, así
 que las horas de autonomía sigues siendo estimaciones de diseño.
 
-## 12. Qué cambió en la 0.5.3
+## 13. Qué cambió en la 0.5.3
 
 **Tablero de emergencia**, la información que se necesita después de un sismo o
 una inundación, ordenada para que sirva en vez de estorbar:
@@ -517,7 +553,7 @@ una inundación, ordenada para que sirva en vez de estorbar:
   de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
   y se publica de verdad). Total: **119 pruebas**.
 
-## 13. Qué cambió en la 0.5.2
+## 14. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -539,7 +575,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 14. Qué cambió en la 0.5.1
+## 15. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -572,7 +608,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 15. Licencia
+## 16. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),

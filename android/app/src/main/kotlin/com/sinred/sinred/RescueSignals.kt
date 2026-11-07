@@ -29,6 +29,7 @@ class RescueSignals(context: Context, private val window: Window) {
     private var torchCameraId: String? = null
     private var torchOn = false
     private var siren: AudioTrack? = null
+    private var tone: AudioTrack? = null
 
     /** Id de la cámara trasera con flash; null si el equipo no tiene ninguna. */
     private fun torchCamera(): String? {
@@ -103,7 +104,24 @@ class RescueSignals(context: Context, private val window: Window) {
         val samples = ShortArray(framesPerTone * 2)
         fillTone(samples, 0, framesPerTone, 880.0, sampleRate)
         fillTone(samples, framesPerTone, framesPerTone, 1180.0, sampleRate)
+        return buildLoop(samples, sampleRate)
+    }
 
+    /**
+     * Pitido continuo para el morse escrito: cada punto y cada raya lo encienden
+     * y lo apagan, así el oído sigue el mismo ritmo que la luz. Un segundo son
+     * 700 ciclos exactos, de modo que el bucle empalma sin chasquido.
+     */
+    private fun buildTone(): AudioTrack? {
+        val sampleRate = 22050
+        val frames = sampleRate
+        val samples = ShortArray(frames)
+        fillTone(samples, 0, frames, 700.0, sampleRate)
+        return buildLoop(samples, sampleRate)
+    }
+
+    /** Reproductor en bucle infinito para un buffer ya sintetizado. */
+    private fun buildLoop(samples: ShortArray, sampleRate: Int): AudioTrack? {
         val format = AudioFormat.Builder()
             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
             .setSampleRate(sampleRate)
@@ -141,6 +159,36 @@ class RescueSignals(context: Context, private val window: Window) {
         for (i in 0 until frames) {
             val value = sin(2.0 * PI * hertz * i / sampleRate) * 0.5 * Short.MAX_VALUE
             buffer[offset + i] = value.roundToInt().toShort()
+        }
+    }
+
+    fun setMorseTone(on: Boolean): Boolean {
+        if (!on) {
+            stopTone()
+            return true
+        }
+        if (tone != null) return true
+        return try {
+            tone = buildTone()?.also { it.play() }
+            tone != null
+        } catch (error: Exception) {
+            stopTone()
+            false
+        }
+    }
+
+    private fun stopTone() {
+        val track = tone ?: return
+        tone = null
+        try {
+            track.stop()
+        } catch (error: Exception) {
+            // Ya estaba parado.
+        }
+        try {
+            track.release()
+        } catch (error: Exception) {
+            // Nada que liberar.
         }
     }
 
@@ -185,6 +233,7 @@ class RescueSignals(context: Context, private val window: Window) {
     fun stopSignals() {
         setTorch(false)
         stopSiren()
+        stopTone()
         keepAwake(false)
     }
 }

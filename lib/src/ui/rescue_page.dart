@@ -6,6 +6,7 @@ import '../platform/rescue_service.dart';
 import '../rescue/morse.dart';
 import '../rescue/sighting.dart';
 import 'signal_panel_page.dart';
+import 'telegraph_page.dart';
 import 'widgets.dart';
 
 /// Panel de señales de rescate: luz SOS, sirena, símbolos de suelo a aire y
@@ -193,6 +194,8 @@ class _RescuePageState extends State<RescuePage> {
           const SizedBox(height: 12),
           _sosCard(scheme),
           const SizedBox(height: 12),
+          _telegraphCard(scheme),
+          const SizedBox(height: 12),
           _sirenCard(scheme),
           const SizedBox(height: 12),
           _signalsCard(scheme),
@@ -302,6 +305,37 @@ class _RescuePageState extends State<RescuePage> {
           ),
         ],
       ),
+    );
+  }
+
+  /// El morse no se queda en el SOS: acá se escribe cualquier mensaje.
+  Widget _telegraphCard(ColorScheme scheme) {
+    return InfoCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(scheme, Icons.edit_note, 'Telegrafía'),
+          const SizedBox(height: 8),
+          Text(
+            'Cualquier frase en morse, no solo el SOS: "estamos bien", '
+            '"necesitamos agua", una dirección. Pantalla, linterna y pitido, '
+            'con el alfabeto completo.',
+            style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _openTelegraph,
+            icon: const Icon(Icons.light_mode_outlined),
+            label: const Text('Escribir un mensaje'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openTelegraph() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const TelegraphPage()),
     );
   }
 
