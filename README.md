@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" width="150" alt="Logo de SinRed: cuatro nodos unidos en rombo">
+</p>
+
 # SinRed
 
 Chat tipo WhatsApp que funciona **sin internet, sin operador y sin servidores**.
@@ -271,14 +275,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.5.4.apk`** (65 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.5.5.apk`** (66 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.5.4.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.4/SinRed-0.5.4.apk)
+[**SinRed-0.5.5.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.5/SinRed-0.5.5.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `fc29330645c53259626d56f142c9703138ff1b2aa9e208a13856de8d681bdaa9`.
+SHA-256: `ee5f7f74007b692ff4902ef6a635e3e262ec6e7953dc4c72c92078cf256b7579`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -408,7 +412,22 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.5.4
+## 9. Qué cambió en la 0.5.5
+
+Identidad visual, sin tocar el funcionamiento de la malla:
+
+- **Logo propio**: cuatro nodos unidos en rombo con un nodo central ámbar. No
+  hay arcos de wifi ni barras de cobertura a propósito: la app existe justo
+  cuando eso falta, lo que se dibuja es la red que queda.
+- **Icono adaptativo** (Android 8+): fondo, dibujo y versión monocroma para los
+  iconos temáticos de Android 13, más `ic_launcher_round` para lanzadores
+  antiguos. Todos los tamaños se generan desde una sola definición con
+  `tool/make_logo.py`; no hay PNGs a mano que se desincronicen.
+- **Arranque con marca**: fondo oscuro y el rombo centrado en vez del destello
+  blanco, también en Android 12+ (`windowSplashScreenBackground`).
+- El logo aparece en Ajustes, sobre la versión, y en este README.
+
+## 10. Qué cambió en la 0.5.4
 
 Todo para que la app gaste lo mínimo cuando la energía es el problema:
 
@@ -436,7 +455,7 @@ Todo para que la app gaste lo mínimo cuando la energía es el problema:
 Lo que no cambia: la app no puede medir su consumo real sin un teléfono, así
 que las horas de autonomía sigues siendo estimaciones de diseño.
 
-## 10. Qué cambió en la 0.5.3
+## 11. Qué cambió en la 0.5.3
 
 **Tablero de emergencia**, la información que se necesita después de un sismo o
 una inundación, ordenada para que sirva en vez de estorbar:
@@ -461,7 +480,7 @@ una inundación, ordenada para que sirva en vez de estorbar:
   de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
   y se publica de verdad). Total: **119 pruebas**.
 
-## 11. Qué cambió en la 0.5.2
+## 12. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -483,7 +502,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 12. Qué cambió en la 0.5.1
+## 13. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -516,7 +535,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 13. Licencia
+## 14. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),
