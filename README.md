@@ -47,6 +47,9 @@ ratos para no comerse la batería).
 - **Modo repetidor**: deja un teléfono enchufado reenviando lo de los demás.
 - **Brújula**: con un chat abierto, una flecha apunta hacia la otra persona.
 - **Compartir la app**: manda el APK por Quick Share o Bluetooth, sin internet.
+- **Panel de señales de rescate**: SOS en morse con pantalla y linterna, sirena,
+  símbolos X / V / flecha y contador de tiempo desde el último avistamiento.
+  Sin radio: sirve aunque la malla esté en reposo o sin Bluetooth.
 
 ### El canal abierto y el SOS
 
@@ -275,14 +278,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.5.5.apk`** (66 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.6.0.apk`** (66 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.5.5.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.5/SinRed-0.5.5.apk)
+[**SinRed-0.6.0.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.6.0/SinRed-0.6.0.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `ee5f7f74007b692ff4902ef6a635e3e262ec6e7953dc4c72c92078cf256b7579`.
+SHA-256: `cc3b2ace978955e96d72ec5b4cfe6e184e8f713e074289732f166eaeb4359859`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -412,7 +415,41 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.5.5
+## 9. Qué cambió en la 0.6.0
+
+El teléfono como herramienta de rescate, sin radio de por medio:
+
+- **SOS en morse** (`lib/src/rescue/morse.dart`): tres cortos, tres largos, tres
+  cortos, pausa larga y a repetir. Un ciclo dura **10,2 s** con pulsos de 300 ms,
+  lento a propósito: un SOS apurado se pierde entre parpadeos. La pantalla
+  blanca y la linterna de atrás parpadean juntas, con el brillo forzado al
+  máximo mientras el panel está abierto y devuelto al salir.
+- **Sirena**: dos tonos alternos de 600 ms por el altavoz, en el volumen de
+  alarma, para que suene aunque el teléfono esté en silencio. Las frecuencias
+  (880 y 1180 Hz) duran un número entero de ciclos, así el bucle empalma sin
+  chasquido.
+- **Señalización**: pantalla completa en blanco con la **X** (necesito médico),
+  la **V** (necesito ayuda) o una **flecha** que gira en pasos de 45° para
+  indicar por dónde vas. Sin barras del sistema, el símbolo ocupa todo lo que
+  puede.
+- **Contador de avistamiento**: cuánto hace que no ves un avión, un helicóptero
+  o gente. Se guarda en su propio archivo (`sinred_rescate.json`), así el número
+  sigue siendo cierto aunque cierres la app para ahorrar batería; a partir de
+  6 h se pinta en rojo.
+- **Nada de esto toca la radio**: ni escaneo, ni enlaces, ni servicio en primer
+  plano. Funciona con la malla en reposo o sin Bluetooth, y el panel lo dice.
+- Linterna y sirena van por un canal nativo propio (`sinred/rescue`,
+  `RescueSignals.kt`) con `CameraManager` y `AudioTrack`: **ninguna dependencia
+  nueva** en el APK. Si otra app tiene la cámara tomada, el SOS sigue con la
+  pantalla y lo avisa en vez de fallar en silencio.
+- Pruebas nuevas (`test/rescue_test.dart`): estructura y tiempos del patrón
+  morse (incluida la repetición exacta a los 10,2 s), formato del contador y
+  persistencia de la marca, incluso con el archivo corrupto.
+
+Lo que no se puede probar sin un teléfono es la parte física: si la linterna
+alumbra, si la sirena suena fuerte y si el brillo forzado alcanza al sol.
+
+## 10. Qué cambió en la 0.5.5
 
 Identidad visual, sin tocar el funcionamiento de la malla:
 
@@ -427,7 +464,7 @@ Identidad visual, sin tocar el funcionamiento de la malla:
   blanco, también en Android 12+ (`windowSplashScreenBackground`).
 - El logo aparece en Ajustes, sobre la versión, y en este README.
 
-## 10. Qué cambió en la 0.5.4
+## 11. Qué cambió en la 0.5.4
 
 Todo para que la app gaste lo mínimo cuando la energía es el problema:
 
@@ -455,7 +492,7 @@ Todo para que la app gaste lo mínimo cuando la energía es el problema:
 Lo que no cambia: la app no puede medir su consumo real sin un teléfono, así
 que las horas de autonomía sigues siendo estimaciones de diseño.
 
-## 11. Qué cambió en la 0.5.3
+## 12. Qué cambió en la 0.5.3
 
 **Tablero de emergencia**, la información que se necesita después de un sismo o
 una inundación, ordenada para que sirva en vez de estorbar:
@@ -480,7 +517,7 @@ una inundación, ordenada para que sirva en vez de estorbar:
   de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
   y se publica de verdad). Total: **119 pruebas**.
 
-## 12. Qué cambió en la 0.5.2
+## 13. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -502,7 +539,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 13. Qué cambió en la 0.5.1
+## 14. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -535,7 +572,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 14. Licencia
+## 15. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),

@@ -9,6 +9,7 @@ import 'board_page.dart';
 import 'chat_page.dart';
 import 'contacts_page.dart';
 import 'nodes_page.dart';
+import 'rescue_page.dart';
 import 'settings_page.dart';
 import 'widgets.dart';
 
@@ -35,6 +36,13 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Señales de rescate',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const RescuePage()),
+            ),
+            icon: const Icon(Icons.sos),
+          ),
           IconButton(
             tooltip: 'Reiniciar radio',
             onPressed: node.running

@@ -38,6 +38,7 @@ class MainActivity : FlutterActivity() {
     private val locationChannelName = "sinred/location"
     private val sensorChannelName = "sinred/sensors"
     private val shareChannelName = "sinred/share"
+    private val rescueChannelName = "sinred/rescue"
     private val permissionRequestCode = 71
     private val locationPermissionRequestCode = 72
     private val contactChannelId = "sinred_contacts"
@@ -46,6 +47,8 @@ class MainActivity : FlutterActivity() {
     private var locationChannel: MethodChannel? = null
     private var sensorChannel: MethodChannel? = null
     private var shareChannel: MethodChannel? = null
+    private var rescueChannel: MethodChannel? = null
+    private var rescueSignals: RescueSignals? = null
     private var compassListener: SensorEventListener? = null
     private var lastHeadingAt = 0L
     private var lastHeading = -1f
@@ -235,6 +238,31 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // Panel de señales: linterna, sirena y pantalla encendida. No usa la
+        // radio, así que puede estar activo sin tocar la malla.
+        val signals = RescueSignals(this, window)
+        rescueSignals = signals
+        rescueChannel =
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, rescueChannelName)
+        rescueChannel!!.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasTorch" -> result.success(signals.hasTorch())
+                "torch" ->
+                    result.success(signals.setTorch(call.argument<Boolean>("on") ?: false))
+                "siren" ->
+                    result.success(signals.setSiren(call.argument<Boolean>("on") ?: false))
+                "keepAwake" -> {
+                    signals.keepAwake(call.argument<Boolean>("on") ?: false)
+                    result.success(true)
+                }
+                "release" -> {
+                    signals.stopSignals()
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
 
     /** La app ya estaba viva y el usuario tocó otra notificación. */
@@ -267,9 +295,19 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onStop() {
+        // El panel de señales solo tiene sentido con la pantalla delante: si la
+        // app pasa a segundo plano se apagan linterna y sirena. La radio sigue
+        // con su servicio en primer plano, como siempre.
+        rescueSignals?.stopSignals()
+        super.onStop()
+    }
+
     override fun onDestroy() {
         // Si la Activity muere con el diálogo abierto, se libera el canal para
         // que el Future de Dart no quede colgado para siempre.
+        rescueSignals?.stopSignals()
+        rescueSignals = null
         replyPendingPermissions(false)
         replyLocationPermissions(false)
         stopLocationUpdates()
