@@ -9,11 +9,7 @@ class InboundPacket {
 
 /// Cambio de estado de un enlace (conexión BLE establecida o perdida).
 class LinkEvent {
-  const LinkEvent({
-    required this.linkId,
-    required this.connected,
-    this.rssi,
-  });
+  const LinkEvent({required this.linkId, required this.connected, this.rssi});
   final String linkId;
   final bool connected;
   final int? rssi;
@@ -38,13 +34,17 @@ abstract class MeshTransport {
 
   /// Envía una trama ya codificada.
   /// [onlyLink] limita el envío a un enlace; [exceptLink] lo excluye.
-  Future<void> send(
-    Uint8List frame, {
-    String? onlyLink,
-    String? exceptLink,
-  });
+  Future<void> send(Uint8List frame, {String? onlyLink, String? exceptLink});
 
   /// El planificador de energía enciende y apaga el escaneo (lo caro).
   /// El advertising se mantiene siempre: cuesta ~20 veces menos que escanear.
   void setDiscoveryEnabled(bool enabled);
+
+  /// Suelta los enlaces que llevan [timeout] sin tráfico (null = nunca).
+  ///
+  /// Un enlace BLE abierto cuesta batería aunque nadie hable: el teléfono y el
+  /// otro equipo se siguen oyendo para mantener la conexión viva. En los modos
+  /// de ahorro se cierran y se vuelven a abrir en la siguiente ventana de
+  /// radio, que es cuando hay oportunidad de hablar igualmente.
+  void setIdleLinkTimeout(Duration? timeout);
 }

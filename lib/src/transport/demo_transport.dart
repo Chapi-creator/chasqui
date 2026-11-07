@@ -31,10 +31,12 @@ class DemoMeshTransport implements MeshTransport {
   /// Semillas fijas: si los nodos simulados cambiaran de identidad en cada
   /// arranque, la lista de contactos se llenaría de Anas y Brunos fantasma
   /// que nunca vuelven a aparecer.
-  static final Uint8List _anaSeed =
-      Uint8List.fromList(List<int>.filled(32, 0x11));
-  static final Uint8List _brunoSeed =
-      Uint8List.fromList(List<int>.filled(32, 0x22));
+  static final Uint8List _anaSeed = Uint8List.fromList(
+    List<int>.filled(32, 0x11),
+  );
+  static final Uint8List _brunoSeed = Uint8List.fromList(
+    List<int>.filled(32, 0x22),
+  );
 
   bool _running = false;
   int _replyIndex = 0;
@@ -82,11 +84,15 @@ class DemoMeshTransport implements MeshTransport {
     _peers[bruno.identity.id] = bruno;
 
     _later(const Duration(milliseconds: 500), () {
-      _linkEvents.add(LinkEvent(linkId: ana.linkId, connected: true, rssi: -58));
+      _linkEvents.add(
+        LinkEvent(linkId: ana.linkId, connected: true, rssi: -58),
+      );
       _announce(ana);
     });
     _later(const Duration(milliseconds: 1200), () {
-      _linkEvents.add(LinkEvent(linkId: bruno.linkId, connected: true, rssi: -74));
+      _linkEvents.add(
+        LinkEvent(linkId: bruno.linkId, connected: true, rssi: -74),
+      );
       _announce(bruno);
     });
   }
@@ -144,6 +150,11 @@ class DemoMeshTransport implements MeshTransport {
   @override
   void setDiscoveryEnabled(bool enabled) {
     // La demo no gasta radio: no hay nada que apagar.
+  }
+
+  @override
+  void setIdleLinkTimeout(Duration? timeout) {
+    // Igual: los nodos simulados no consumen batería.
   }
 
   void _announce(_DemoPeer peer) {

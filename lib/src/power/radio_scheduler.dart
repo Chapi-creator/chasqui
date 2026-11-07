@@ -15,12 +15,17 @@ class RadioScheduler extends ChangeNotifier {
     required this.onScanGate,
     this.enableBatteryMonitor = true,
     this.policy = const PowerPolicy(),
-  });
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
 
   /// Callback hacia el transporte: true = escanear, false = descansar.
   final void Function(bool enabled) onScanGate;
   final bool enableBatteryMonitor;
   final PowerPolicy policy;
+
+  /// Reloj inyectable: las ventanas se alinean con la hora del teléfono y los
+  /// tests necesitan controlarla.
+  final DateTime Function() _now;
 
   RadioMode _mode = RadioMode.equilibrado;
   int _batteryLevel = 100;
@@ -35,8 +40,10 @@ class RadioScheduler extends ChangeNotifier {
   Timer? _windowTimer;
   Timer? _cycleTimer;
   Timer? _batteryTimer;
-  ScanPlan _currentPlan =
-      const ScanPlan(Duration(seconds: 4), Duration(seconds: 45));
+  ScanPlan _currentPlan = const ScanPlan(
+    Duration(seconds: 4),
+    Duration(seconds: 45),
+  );
 
   RadioMode get mode => _mode;
   int get batteryLevel => _batteryLevel;
@@ -53,8 +60,10 @@ class RadioScheduler extends ChangeNotifier {
     _running = true;
     if (enableBatteryMonitor) {
       await _refreshBattery();
+      // Cada 5 min basta: el nivel no cambia más rápido y cada consulta
+      // cruza al lado nativo.
       _batteryTimer = Timer.periodic(
-        const Duration(minutes: 2),
+        const Duration(minutes: 5),
         (_) => _refreshBattery(),
       );
     }
@@ -159,13 +168,14 @@ class RadioScheduler extends ChangeNotifier {
       final next = _computePlan;
       _currentPlan = next;
       notifyListeners();
-      final rest = next.interval - next.window;
-      _cycleTimer = Timer(
-        rest.isNegative ? Duration.zero : rest,
-        () {
-          if (_running) _restartCycle();
-        },
-      );
+      // Descanso hasta la próxima frontera del reloj, no "intervalo menos
+      // ventana": así todos los teléfonos despiertan a la vez. Como la ventana
+      // anterior empezó en una frontera, en régimen normal esto equivale a
+      // intervalo − ventana; solo la primera ventana queda libre de fase.
+      final rest = next.delayUntilNextWindow(_now());
+      _cycleTimer = Timer(rest.isNegative ? Duration.zero : rest, () {
+        if (_running) _restartCycle();
+      });
     });
   }
 
@@ -174,7 +184,8 @@ class RadioScheduler extends ChangeNotifier {
       final level = await _battery.batteryLevel;
       final state = await _battery.batteryState;
       final changed =
-          level != _batteryLevel || (state == BatteryState.charging) != _charging;
+          level != _batteryLevel ||
+          (state == BatteryState.charging) != _charging;
       _batteryLevel = level;
       _charging = state == BatteryState.charging || state == BatteryState.full;
       if (changed) {

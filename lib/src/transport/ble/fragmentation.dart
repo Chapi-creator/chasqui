@@ -33,7 +33,7 @@ class FrameChunker {
 
 class _Pending {
   _Pending(this.total, this.createdAt)
-      : parts = List<Uint8List?>.filled(total, null);
+    : parts = List<Uint8List?>.filled(total, null);
 
   final int total;
   final DateTime createdAt;
@@ -99,7 +99,9 @@ class FrameReassembler {
 
   void _prune() {
     final now = DateTime.now();
-    _pending.removeWhere((_, entry) => now.difference(entry.createdAt) > timeout);
+    _pending.removeWhere(
+      (_, entry) => now.difference(entry.createdAt) > timeout,
+    );
   }
 
   void clear() => _pending.clear();

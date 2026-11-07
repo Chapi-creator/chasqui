@@ -10,6 +10,29 @@ import '../platform/power_service.dart';
 import '../power/power_policy.dart';
 import 'widgets.dart';
 
+/// Texto que explica cuánta radio se está gastando ahora mismo.
+///
+/// En una emergencia la batería es el recurso que no se repone: el usuario
+/// tiene que poder ver el porcentaje, no solo elegir un nombre de modo.
+String _radioSummary(MeshNode node) {
+  final plan = node.scanPlan;
+  final duty = (plan.dutyCycle * 100).toStringAsFixed(1).replaceAll('.', ',');
+  if (node.relayMode) {
+    return 'Modo repetidor: escucha ${plan.window.inSeconds}s de cada '
+        '${plan.interval.inSeconds}s. Es el que más gasta, para un teléfono '
+        'enchufado.';
+  }
+  return 'Ahora mismo: ${plan.window.inSeconds}s de radio cada '
+      '${plan.interval.inSeconds}s (≈$duty % del tiempo). Las ventanas caen en '
+      'el mismo instante en todos los teléfonos, así que se puede dormir más '
+      'sin perder encuentros. En Máxima batería y Ahorro se sueltan además los '
+      'enlaces que llevan rato sin tráfico; los mensajes pueden tardar unos '
+      'minutos en salir.';
+}
+
+TextStyle? _radioSummaryStyle(ColorScheme scheme) =>
+    TextStyle(fontSize: 12, color: scheme.onSurfaceVariant, height: 1.45);
+
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -92,17 +115,7 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        Text(
-          'Ahora mismo: escucha ${node.scanPlan.window.inSeconds}s cada '
-          '${node.scanPlan.interval.inSeconds}s. '
-          'El modo ahorro puede llegar a 5 minutos entre ventanas cuando no '
-          'hay nodos cerca o la batería está por debajo del 15%.',
-          style: TextStyle(
-            fontSize: 12,
-            color: scheme.onSurfaceVariant,
-            height: 1.45,
-          ),
-        ),
+        Text(_radioSummary(node), style: _radioSummaryStyle(scheme)),
         const SizedBox(height: 10),
         OutlinedButton.icon(
           onPressed: PowerService.openBatterySettings,

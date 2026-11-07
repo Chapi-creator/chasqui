@@ -47,6 +47,12 @@ class FakeTransport implements MeshTransport {
   @override
   void setDiscoveryEnabled(bool enabled) {}
 
+  /// Lo que la malla pidió: null = no soltar enlaces.
+  Duration? idleLinkTimeout;
+
+  @override
+  void setIdleLinkTimeout(Duration? timeout) => idleLinkTimeout = timeout;
+
   void connect(String linkId, {int? rssi = -55}) {
     _linkCount += 1;
     _linkEvents.add(LinkEvent(linkId: linkId, connected: true, rssi: rssi));

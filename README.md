@@ -38,6 +38,8 @@ ratos para no comerse la batería).
   **Desaparecidos** y **Peligro** — con la hora y los saltos de cada aviso a la
   vista. Cada aviso caduca solo (2 h el peligro, 12 h necesito/ofrezco, 48 h
   desaparecidos), así nadie camina hasta un punto de agua que ya no está.
+- **Cuatro modos de radio**, del más tacaño al más rápido: **Máxima batería**
+  escucha 4 s cada 5 min (1,3 % del tiempo) y es el que aguanta días sin cargar.
 - **Modo repetidor**: deja un teléfono enchufado reenviando lo de los demás.
 - **Brújula**: con un chat abierto, una flecha apunta hacia la otra persona.
 - **Compartir la app**: manda el APK por Quick Share o Bluetooth, sin internet.
@@ -214,29 +216,50 @@ alguien que no está al alcance, el camino es el QR o pegar el código completo.
 
 ## 4. Batería: el diseño
 
-El gasto de una malla BLE viene de **escanear**, no de anunciarse. Por eso:
+El gasto de una malla BLE viene de **escuchar**, no de anunciarse. Por eso:
 
 - **Advertising siempre encendido** (baratísimo, permite que te encuentren).
 - **Escaneo por ventanas** según `PowerPolicy`:
 
-| Modo | Ventana | Cada | Ciclo activo |
+| Modo | Ventana | Cada | Radio activa |
 |---|---|---|---|
+| **Máxima batería** | 4 s | 300 s | 1,3 % |
 | Ahorro | 3 s | 120 s | 2,5 % |
 | Equilibrado | 4 s | 45 s | 8,9 % |
 | Rápido | 5 s | 20 s | 25 % |
 
+- **Ventanas alineadas con el reloj**: todas las copias de la app abren la
+  ventana en los mismos múltiplos de su intervalo (desde la época Unix), no
+  cuando arrancó cada teléfono. Antes dos vecinos con fases distintas podían
+  escuchar en momentos diferentes **para siempre** y no encontrarse nunca
+  aunque los dos escanearan. Con la fase común se puede dormir más rato sin
+  perder encuentros, que es justo lo que ahorra batería: dos teléfonos en
+  Máxima batería coinciden 4 s cada 5 minutos en vez de escuchar de más.
+- **Enlaces ociosos**: un enlace BLE abierto cuesta batería aunque nadie hable
+  (los dos equipos siguen intercambiando eventos de conexión). En **Máxima
+  batería** se suelta un enlace tras 1 minuto sin tráfico y en **Ahorro** tras
+  2 minutos; como la siguiente ventana vuelve a conectar sola, el mensaje sale
+  igual, con unos minutos de retraso. En Equilibrado y Rápido los enlaces se
+  mantienen, y en **modo repetidor nunca se sueltan** (su trabajo es estar ahí).
 - Sin encontrar nodos, el intervalo se duplica hasta 5 minutos (backoff). Lo
   detecta el propio planificador al cerrar una ventana sin ningún anuncio, así
   que funciona sin que nadie tenga que avisar de los barridos vacíos.
-- Con batería ≤ 15 % la ventana baja a 2 s y el descanso se alarga.
+- Con batería ≤ 15 % la ventana baja a 2 s y el descanso se alarga. Con **≤ 5 %**
+  se pasa a la rejilla de 5 minutos sin importar el modo elegido: un teléfono
+  muerto no es malla.
 - Si ya hay un enlace abierto, se escanea la mitad: no hace falta buscar más.
 - Cargando, se vuelve agresivo (6 s cada 15 s) para sincronizar rápido.
+- El nivel de batería se consulta cada 5 minutos, no cada 2: cruzar al lado
+  nativo también cuesta.
 - Sin GPS, sin wakelocks, sin sondeos de red. El servicio en primer plano solo
   mantiene el proceso vivo; no despierta la CPU a intervalos.
+- Ajustes muestra el **porcentaje de tiempo con la radio activa** de cada modo,
+  para que la decisión no sea a ciegas.
 
 Orden de magnitud esperado: **2–5 % de batería por hora** en modo equilibrado,
-frente a 10–20 % de un escaneo BLE continuo. Son estimaciones de diseño, no
-mediciones: falta un test de consumo real de 8 h en dispositivo.
+bastante menos en Ahorro o Máxima batería, frente a 10–20 % de un escaneo BLE
+continuo. Son estimaciones de diseño, no mediciones: falta un test de consumo
+real de 8 h en dispositivo, y por eso este README no promete horas exactas.
 
 ## 5. Instalar
 
@@ -248,14 +271,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.5.3.apk`** (65 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.5.4.apk`** (65 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.5.3.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.3/SinRed-0.5.3.apk)
+[**SinRed-0.5.4.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.5.4/SinRed-0.5.4.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `e2a43ebf9b50d1ed0821544d8d660a24e17b6f11ae6dd8f575c86af4ffdac782`.
+SHA-256: `fc29330645c53259626d56f142c9703138ff1b2aa9e208a13856de8d681bdaa9`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -329,6 +352,10 @@ test/                           protocolo, malla, energía y humo de UI
   dos nodos y de qué tamaño. Una trama acarreada puede además entregarse dos
   veces si su caché de duplicados se vació en ese teléfono; la app deduplica por
   id, no por texto.
+- En **Máxima batería** y **Ahorro** un mensaje puede tardar hasta 5 minutos en
+  salir aunque haya alguien al lado: el enlace se abre en la ventana de radio.
+  Y la alineación de ventanas usa la hora del teléfono: con relojes muy
+  desfasados (sin red durante semanas) dos equipos pueden coincidir peor.
 - El tablero **no verifica nada**: cualquiera con la app puede publicar, el
   nombre lo declara el emisor y no hay forma de comprobar que un «desaparecido»
   exista. Tampoco hay moderación: un nodo puede inundar el tablero (el tope de
@@ -381,7 +408,35 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.5.3
+## 9. Qué cambió en la 0.5.4
+
+Todo para que la app gaste lo mínimo cuando la energía es el problema:
+
+- **Modo Máxima batería**: 4 s de radio cada 5 minutos (**1,3 %** del tiempo,
+  frente al 8,9 % del equilibrado). Con batería al 5 % o menos se activa solo,
+  en cualquier modo, porque un teléfono muerto no es malla.
+- **Ventanas alineadas con el reloj**: antes cada teléfono escuchaba con la
+  fase que tenía al arrancar. Dos vecinos podían escuchar en momentos
+  distintos **para siempre** y no encontrarse nunca aunque los dos estuvieran
+  escaneando. Ahora las ventanas caen en múltiplos del intervalo contados desde
+  la época Unix: todos despiertan a la vez. Además de arreglar los encuentros,
+  permite dormir mucho más sin perderlos.
+- **Enlaces ociosos**: se sueltan los enlaces BLE sin tráfico (1 min en Máxima
+  batería, 2 min en Ahorro). Una conexión abierta cuesta batería aunque nadie
+  escriba; la siguiente ventana la vuelve a abrir sola. El modo repetidor nunca
+  los suelta.
+- **Consultas de batería cada 5 min** en vez de cada 2, y el porcentaje de
+  radio activa visible en Ajustes.
+- Pruebas nuevas (`power_test`, `scheduler_test`, `mesh_node_test`): orden de
+  consumo entre modos, paso forzado a 5 min con batería crítica, alineación de
+  la ventana en la frontera del reloj, **dos teléfonos que arrancan en momentos
+  distintos y acaban escuchando a la vez**, y política de enlaces ociosos según
+  modo y repetidor. Total: **124 pruebas**.
+
+Lo que no cambia: la app no puede medir su consumo real sin un teléfono, así
+que las horas de autonomía sigues siendo estimaciones de diseño.
+
+## 10. Qué cambió en la 0.5.3
 
 **Tablero de emergencia**, la información que se necesita después de un sismo o
 una inundación, ordenada para que sirva en vez de estorbar:
@@ -406,7 +461,7 @@ una inundación, ordenada para que sirva en vez de estorbar:
   de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
   y se publica de verdad). Total: **119 pruebas**.
 
-## 10. Qué cambió en la 0.5.2
+## 11. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -428,7 +483,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 11. Qué cambió en la 0.5.1
+## 12. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -461,7 +516,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 12. Licencia
+## 13. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),

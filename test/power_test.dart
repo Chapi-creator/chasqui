@@ -108,9 +108,72 @@ void main() {
           );
           expect(plan.interval.inSeconds, lessThanOrEqualTo(300));
           expect(plan.interval.inSeconds, greaterThanOrEqualTo(10));
-          expect(plan.window.inMilliseconds, lessThan(plan.interval.inMilliseconds));
+          expect(
+            plan.window.inMilliseconds,
+            lessThan(plan.interval.inMilliseconds),
+          );
         }
       }
+    }
+  });
+
+  test('el modo supervivencia es el que menos radio usa', () {
+    ScanPlan plan(RadioMode mode) => policy.plan(
+      mode: mode,
+      batteryLevel: 80,
+      charging: false,
+      emptyStreak: 0,
+      hasLinks: false,
+    );
+
+    final survival = plan(RadioMode.supervivencia);
+    final saver = plan(RadioMode.ahorro);
+
+    expect(survival.dutyCycle, lessThan(saver.dutyCycle));
+    expect(survival.dutyCycle, lessThan(0.02));
+    expect(survival.window, const Duration(seconds: 4));
+    expect(survival.interval, const Duration(minutes: 5));
+  });
+
+  test('con la batería al 5 % se pasa a la rejilla de 5 minutos', () {
+    for (final mode in RadioMode.values) {
+      final critical = policy.plan(
+        mode: mode,
+        batteryLevel: 5,
+        charging: false,
+        emptyStreak: 0,
+        hasLinks: false,
+      );
+      expect(critical.interval, const Duration(minutes: 5), reason: '$mode');
+      expect(critical.window, const Duration(seconds: 4));
+    }
+
+    // Cargando no hace falta tanta tacañería.
+    final charging = policy.plan(
+      mode: RadioMode.rapido,
+      batteryLevel: 5,
+      charging: true,
+      emptyStreak: 0,
+      hasLinks: false,
+    );
+    expect(charging.interval, lessThan(const Duration(minutes: 5)));
+  });
+
+  test('las ventanas caen en fronteras del reloj, no donde arrancó la app', () {
+    const plan = ScanPlan(Duration(seconds: 4), Duration(minutes: 5));
+    final base = DateTime.fromMillisecondsSinceEpoch(1800000);
+
+    for (final offset in [0, 700, 123456, 299000]) {
+      final now = base.add(Duration(milliseconds: offset));
+      final wait = plan.delayUntilNextWindow(now);
+      final next = now.add(wait);
+
+      expect(
+        next.millisecondsSinceEpoch % plan.interval.inMilliseconds,
+        0,
+        reason: 'offset $offset',
+      );
+      expect(wait, greaterThanOrEqualTo(ScanPlan.minRest));
     }
   });
 }

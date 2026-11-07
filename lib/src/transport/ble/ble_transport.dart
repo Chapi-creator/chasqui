@@ -19,10 +19,12 @@ class BleMeshTransport implements MeshTransport {
   final NodeIdentity identity;
   final int maxLinks;
 
-  static final UUID _serviceUuid =
-      UUID.fromString('c0de51ed-0001-4a11-9e11-0f0f0f0f0f01');
-  static final UUID _characteristicUuid =
-      UUID.fromString('c0de51ed-0002-4a11-9e11-0f0f0f0f0f02');
+  static final UUID _serviceUuid = UUID.fromString(
+    'c0de51ed-0001-4a11-9e11-0f0f0f0f0f01',
+  );
+  static final UUID _characteristicUuid = UUID.fromString(
+    'c0de51ed-0002-4a11-9e11-0f0f0f0f0f02',
+  );
 
   final CentralManager _central = CentralManager();
   final PeripheralManager _peripheral = PeripheralManager();
@@ -43,6 +45,12 @@ class BleMeshTransport implements MeshTransport {
   bool _running = false;
   bool _discoveryWanted = true;
   bool _advertising = false;
+  Duration? _idleTimeout;
+  Timer? _idleTimer;
+
+  /// Cada cuánto se mira si un enlace lleva demasiado sin hablar. Es un
+  /// chequeo baratísimo (nada de radio): solo compara relojes.
+  static const Duration idleSweep = Duration(seconds: 30);
 
   String? lastError;
 
@@ -87,8 +95,11 @@ class BleMeshTransport implements MeshTransport {
       ..add(_central.connectionStateChanged.listen(_onPeripheralLinkChanged))
       ..add(_central.characteristicNotified.listen(_onNotified))
       ..add(_peripheral.characteristicWriteRequested.listen(_onWriteRequested))
-      ..add(_peripheral.characteristicNotifyStateChanged
-          .listen(_onNotifyStateChanged))
+      ..add(
+        _peripheral.characteristicNotifyStateChanged.listen(
+          _onNotifyStateChanged,
+        ),
+      )
       ..add(_peripheral.connectionStateChanged.listen(_onCentralLinkChanged));
 
     _service = GATTService(
@@ -119,6 +130,7 @@ class BleMeshTransport implements MeshTransport {
     }
 
     _running = true;
+    _syncIdleTimer();
     if (_discoveryWanted) await _startDiscovery();
   }
 
@@ -133,6 +145,8 @@ class BleMeshTransport implements MeshTransport {
     // reiniciar la radio o cambiar de modo demo a BLE.
     _advertising = false;
     _connecting.clear();
+    _idleTimer?.cancel();
+    _idleTimer = null;
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }
@@ -183,6 +197,40 @@ class BleMeshTransport implements MeshTransport {
       if (_links.length < maxLinks) unawaited(_startDiscovery());
     } else {
       unawaited(_stopDiscovery());
+    }
+  }
+
+  @override
+  void setIdleLinkTimeout(Duration? timeout) {
+    _idleTimeout = timeout;
+    _syncIdleTimer();
+  }
+
+  void _syncIdleTimer() {
+    _idleTimer?.cancel();
+    _idleTimer = null;
+    if (!_running || _idleTimeout == null) return;
+    _idleTimer = Timer.periodic(idleSweep, (_) => unawaited(_sweepIdleLinks()));
+  }
+
+  /// Cierra los enlaces que llevan rato sin tráfico.
+  ///
+  /// Mantener una conexión BLE viva cuesta batería en los dos teléfonos aunque
+  /// nadie escriba: siguen intercambiando eventos de conexión. En la radio de
+  /// ahorro no hace falta: cuando aparezca algo que decir, la siguiente ventana
+  /// de escaneo vuelve a conectar sola.
+  Future<void> _sweepIdleLinks() async {
+    final timeout = _idleTimeout;
+    if (timeout == null || !_running) return;
+    final now = DateTime.now();
+    for (final link in _links.values.toList()) {
+      if (now.difference(link.lastActivity) < timeout) continue;
+      debugPrint('BLE: enlace ${link.id} sin tráfico, se suelta');
+      await _disconnect(link);
+      await _dropLink(link.id);
+    }
+    if (_discoveryWanted && _links.length < maxLinks) {
+      unawaited(_startDiscovery());
     }
   }
 
@@ -301,7 +349,9 @@ class BleMeshTransport implements MeshTransport {
     }
   }
 
-  void _onNotifyStateChanged(GATTCharacteristicNotifyStateChangedEventArgs args) {
+  void _onNotifyStateChanged(
+    GATTCharacteristicNotifyStateChangedEventArgs args,
+  ) {
     final id = args.central.uuid.toString();
     if (!args.state) {
       unawaited(_dropLink(id));
@@ -334,6 +384,7 @@ class BleMeshTransport implements MeshTransport {
       debugPrint('BLE: respondWriteRequest ($error)');
     }
     final id = args.central.uuid.toString();
+    _links[id]?.lastActivity = DateTime.now();
     final frame = _reassembler.add(id, args.request.value);
     if (frame != null) {
       _inbound.add(InboundPacket(id, frame));
@@ -342,13 +393,16 @@ class BleMeshTransport implements MeshTransport {
 
   void _onNotified(GATTCharacteristicNotifiedEventArgs args) {
     final id = args.peripheral.uuid.toString();
+    _links[id]?.lastActivity = DateTime.now();
     final frame = _reassembler.add(id, args.value);
     if (frame != null) {
       _inbound.add(InboundPacket(id, frame));
     }
   }
 
-  void _onPeripheralLinkChanged(PeripheralConnectionStateChangedEventArgs args) {
+  void _onPeripheralLinkChanged(
+    PeripheralConnectionStateChangedEventArgs args,
+  ) {
     if (args.state == ConnectionState.disconnected) {
       final id = args.peripheral.uuid.toString();
       unawaited(_dropLink(id));
@@ -390,6 +444,7 @@ class BleMeshTransport implements MeshTransport {
   }
 
   Future<void> _write(_BleLink link, Uint8List chunk) async {
+    link.lastActivity = DateTime.now();
     if (link.isCentral) {
       await _central.writeCharacteristic(
         link.peripheral!,
@@ -435,4 +490,7 @@ class _BleLink {
   final bool isCentral;
   final Peripheral? peripheral;
   final Central? central;
+
+  /// Última vez que este enlace movió algo (enviado o recibido).
+  DateTime lastActivity = DateTime.now();
 }

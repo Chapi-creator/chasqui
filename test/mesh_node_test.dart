@@ -9,6 +9,7 @@ import 'package:sinred/src/core/models.dart';
 import 'package:sinred/src/data/state_store.dart';
 import 'package:sinred/src/mesh/mesh_node.dart';
 import 'package:sinred/src/mesh/router.dart';
+import 'package:sinred/src/power/power_policy.dart';
 
 import 'support/fake_transport.dart';
 
@@ -49,24 +50,29 @@ void main() {
     await pumpEventQueue();
   }
 
-  test('al parar la radio ningún nodo sigue marcado como enlace directo',
-      () async {
-    transport.connect('link-1');
-    await announce('link-1');
-    await pumpEventQueue();
+  test(
+    'al parar la radio ningún nodo sigue marcado como enlace directo',
+    () async {
+      transport.connect('link-1');
+      await announce('link-1');
+      await pumpEventQueue();
 
-    final peer = node.peers.single;
-    expect(peer.name, 'Ana');
-    expect(peer.directLink, isTrue);
-    expect(peer.rssi, -55, reason: 'la señal del enlace debe llegar al nodo');
+      final peer = node.peers.single;
+      expect(peer.name, 'Ana');
+      expect(peer.directLink, isTrue);
+      expect(peer.rssi, -55, reason: 'la señal del enlace debe llegar al nodo');
 
-    await node.stop();
+      await node.stop();
 
-    expect(node.connectedLinks, 0);
-    expect(node.peers.single.directLink, isFalse,
-        reason: 'sin enlaces no se puede mostrar "Enlace directo"');
-    expect(node.peers.single.rssi, isNull);
-  });
+      expect(node.connectedLinks, 0);
+      expect(
+        node.peers.single.directLink,
+        isFalse,
+        reason: 'sin enlaces no se puede mostrar "Enlace directo"',
+      );
+      expect(node.peers.single.rssi, isNull);
+    },
+  );
 
   test('al parar se guarda el estado pendiente', () async {
     transport.connect('link-1');
@@ -112,12 +118,9 @@ void main() {
 
   test('recibir coordenadas deja el mensaje y el asistente', () async {
     node.setShowProximity(true);
-    node.updateMyLocation(GeoPoint(
-      lat: 0,
-      lon: 0,
-      accuracy: 5,
-      at: DateTime.now(),
-    ));
+    node.updateMyLocation(
+      GeoPoint(lat: 0, lon: 0, accuracy: 5, at: DateTime.now()),
+    );
     final ana = await NodeIdentity.generate();
     transport.incoming(
       'link-1',
@@ -140,12 +143,7 @@ void main() {
         publicKey: node.identity.publicKeyBytes,
         lastSeen: DateTime.now(),
       ),
-      point: GeoPoint(
-        lat: 0,
-        lon: 0.001,
-        accuracy: 8,
-        at: DateTime.now(),
-      ),
+      point: GeoPoint(lat: 0, lon: 0.001, accuracy: 8, at: DateTime.now()),
     );
     transport.incoming('link-1', frame.encode());
     await pumpEventQueue();
@@ -155,10 +153,7 @@ void main() {
     expect(peer.location!.lon, closeTo(0.001, 1e-6));
 
     final messages = node.messagesFor(peer.id);
-    expect(
-      messages.where((m) => m.kind == MessageKind.location),
-      hasLength(1),
-    );
+    expect(messages.where((m) => m.kind == MessageKind.location), hasLength(1));
     final assistant = messages.singleWhere(
       (m) => m.kind == MessageKind.assistant,
     );
@@ -205,12 +200,9 @@ void main() {
     await pumpEventQueue();
 
     final peer = node.peers.single;
-    node.updateMyLocation(GeoPoint(
-      lat: 4.60971,
-      lon: -74.08175,
-      accuracy: 9,
-      at: DateTime.now(),
-    ));
+    node.updateMyLocation(
+      GeoPoint(lat: 4.60971, lon: -74.08175, accuracy: 9, at: DateTime.now()),
+    );
     final sent = await node.sendMyLocation(peer.id);
     await pumpEventQueue();
 
@@ -227,16 +219,33 @@ void main() {
     await pumpEventQueue();
 
     final peer = node.peers.single;
-    node.updateMyLocation(GeoPoint(
-      lat: 1,
-      lon: 2,
-      accuracy: 9,
-      at: DateTime.now(),
-    ));
+    node.updateMyLocation(
+      GeoPoint(lat: 1, lon: 2, accuracy: 9, at: DateTime.now()),
+    );
     final sent = await node.sendMyLocation(peer.id);
 
     expect(sent, isFalse);
     expect(node.messagesFor(peer.id).single.status, MessageStatus.failed);
     expect(node.pendingCount, 0, reason: 'una ubicación vieja no sirve mañana');
+  });
+
+  test('el ahorro suelta enlaces ociosos y el repetidor no', () async {
+    // Equilibrado: el enlace se mantiene, como antes.
+    expect(transport.idleLinkTimeout, isNull);
+
+    node.setRadioMode(RadioMode.ahorro);
+    expect(transport.idleLinkTimeout, const Duration(minutes: 2));
+
+    node.setRadioMode(RadioMode.supervivencia);
+    expect(transport.idleLinkTimeout, const Duration(minutes: 1));
+
+    // Un repetidor vive de tener el enlace abierto: nunca lo suelta.
+    await node.setRelayMode(true);
+    node.setRadioMode(RadioMode.supervivencia);
+    expect(transport.idleLinkTimeout, isNull);
+
+    // Al quitar el repetidor vuelve la política del modo.
+    await node.setRelayMode(false);
+    expect(transport.idleLinkTimeout, const Duration(minutes: 1));
   });
 }

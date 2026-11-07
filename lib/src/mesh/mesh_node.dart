@@ -283,6 +283,7 @@ class MeshNode extends ChangeNotifier {
       _error = error is StateError ? error.message : error.toString();
       debugPrint('MeshNode: radio no disponible ($error)');
     }
+    _applyIdlePolicy();
     await _scheduler.start();
     // Quien ya estaba al alcance al abrir la app no genera aviso: el usuario
     // está mirando la pantalla.
@@ -443,9 +444,24 @@ class MeshNode extends ChangeNotifier {
     if (_radioMode == mode) return;
     _radioMode = mode;
     _scheduler.setMode(mode);
+    _applyIdlePolicy();
     _notify();
     _scheduleSave();
   }
+
+  /// Un enlace BLE abierto cuesta batería aunque nadie escriba. En los modos de
+  /// ahorro se sueltan los que llevan rato callados y se vuelven a abrir en la
+  /// siguiente ventana de escaneo; el repetidor, en cambio, vive de tenerlos.
+  Duration? get idleLinkTimeout {
+    if (_relayMode) return null;
+    return switch (_radioMode) {
+      RadioMode.supervivencia => const Duration(minutes: 1),
+      RadioMode.ahorro => const Duration(minutes: 2),
+      RadioMode.equilibrado || RadioMode.rapido => null,
+    };
+  }
+
+  void _applyIdlePolicy() => _transport.setIdleLinkTimeout(idleLinkTimeout);
 
   // -------------------------------------------------------------- ubicación
 
@@ -502,6 +518,7 @@ class MeshNode extends ChangeNotifier {
     if (_relayMode == enabled) return;
     _relayMode = enabled;
     _scheduler.setAlwaysListen(enabled);
+    _applyIdlePolicy();
     _notify();
     _scheduleSave();
     if (enabled) await _announceToAllLinks();
