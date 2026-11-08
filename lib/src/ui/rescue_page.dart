@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../platform/rescue_service.dart';
 import '../rescue/morse.dart';
 import '../rescue/sighting.dart';
+import 'morse_learn_page.dart';
+import 'morse_receiver_page.dart';
 import 'signal_panel_page.dart';
 import 'telegraph_page.dart';
 import 'widgets.dart';
@@ -161,7 +163,9 @@ class _RescuePageState extends State<RescuePage> {
     if (value && !ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No se pudo encender la sirena: el altavoz está ocupado.'),
+          content: Text(
+            'No se pudo encender la sirena: el altavoz está ocupado.',
+          ),
         ),
       );
     }
@@ -195,6 +199,10 @@ class _RescuePageState extends State<RescuePage> {
           _sosCard(scheme),
           const SizedBox(height: 12),
           _telegraphCard(scheme),
+          const SizedBox(height: 12),
+          _receiverCard(scheme),
+          const SizedBox(height: 12),
+          _learnCard(scheme),
           const SizedBox(height: 12),
           _sirenCard(scheme),
           const SizedBox(height: 12),
@@ -334,8 +342,68 @@ class _RescuePageState extends State<RescuePage> {
   }
 
   void _openTelegraph() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const TelegraphPage()),
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const TelegraphPage()));
+  }
+
+  /// Del otro lado: leer los destellos de alguien que pide ayuda. Es lo que le
+  /// falta a la telegrafía para ser una conversación y no un monólogo.
+  Widget _receiverCard(ColorScheme scheme) {
+    return InfoCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(scheme, Icons.visibility_outlined, 'Recibir morse'),
+          const SizedBox(height: 8),
+          Text(
+            'Apuntá la cámara a una luz que parpadea y el teléfono lo pasa a '
+            'texto. Si la cámara no sirve, se toca al ritmo de lo que se ve.',
+            style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const MorseReceiverPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.subtitles_outlined),
+            label: const Text('Leer un mensaje'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// El abecedario, las palabras de ejemplo y el juego: nadie nace sabiendo
+  /// morse, y del otro lado puede haber alguien que nunca lo vio.
+  Widget _learnCard(ColorScheme scheme) {
+    return InfoCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardTitle(scheme, Icons.school_outlined, 'Aprender morse'),
+          const SizedBox(height: 8),
+          Text(
+            'El abecedario completo, cada letra con su ritmo para ver y '
+            'escuchar, palabras de ejemplo y un juego corto. Sin internet.',
+            style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const MorseLearnPage()),
+              );
+            },
+            icon: const Icon(Icons.table_chart_outlined),
+            label: const Text('Ver el abecedario'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -621,9 +689,7 @@ class _MorseStrip extends StatelessWidget {
         for (var i = 0; i < _dots.length; i++)
           Padding(
             padding: EdgeInsets.only(
-              left: i == 0
-                  ? 0
-                  : (i == 3 || i == 6 ? 10 : 4) * scale,
+              left: i == 0 ? 0 : (i == 3 || i == 6 ? 10 : 4) * scale,
             ),
             child: Container(
               width: (_dots[i] ? 10 : 28) * scale,

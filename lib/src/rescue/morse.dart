@@ -175,6 +175,25 @@ const Map<String, String> morseAlphabet = {
   '@': '.--.-.',
 };
 
+/// La tabla al revés: de código a símbolo. Se arma una vez y sirve para leer
+/// los destellos que llegan por cámara.
+final Map<String, String> reverseMorse = {
+  for (final entry in morseAlphabet.entries) entry.value: entry.key,
+};
+
+/// Qué símbolo corresponde a un código, o `?` si no es válido. Un destello
+/// mal medido produce un código que no existe: se marca así en lugar de
+/// inventar una letra.
+String morseSymbolFor(String code) => reverseMorse[code] ?? '?';
+
+/// Llamada de atención: la VVV que se manda antes del mensaje para que quien
+/// mira levante la vista. No es un mensaje, es el "eh, ojo acá".
+const String attentionCall = 'VVV';
+
+/// Cuántas letras ocupa la llamada de atención más el espacio que la separa
+/// del mensaje.
+const int attentionPrefixLength = 4;
+
 /// Tildes y diéresis que no cambian la letra. Sin esto, "MÉDICO" quedaría a
 /// medias: la É no existe en morse, pero la E sí.
 const Map<String, String> _foldedLetters = {
@@ -236,6 +255,7 @@ class MorseMessage {
     String input, {
     int letterGapUnits = 3,
     int wordGapUnits = 7,
+    bool attention = false,
   }) {
     final normalized = normalizeMorseText(input);
     final chars = <String>[];
@@ -262,6 +282,14 @@ class MorseMessage {
       }
       chars.add(char);
       codes.add(code);
+    }
+
+    // La llamada de atención va delante, separada como una palabra: quien
+    // mira ve tres V y ya sabe que después viene el mensaje de verdad.
+    final withAttention = attention && chars.isNotEmpty;
+    if (withAttention) {
+      chars.insertAll(0, ['V', 'V', 'V', ' ']);
+      codes.insertAll(0, ['...-', '...-', '...-', '']);
     }
 
     final steps = <LightStep>[];
@@ -305,7 +333,7 @@ class MorseMessage {
       skipped: List.unmodifiable(skipped),
       stepLetters: List.unmodifiable(stepLetters),
       stepElements: List.unmodifiable(stepElements),
-    );
+    ).._attention = withAttention;
   }
 
   /// Letras y espacios tal como se van a transmitir.
@@ -322,6 +350,28 @@ class MorseMessage {
 
   final List<int> _stepLetters;
   final List<int> _stepElements;
+  bool _attention = false;
+
+  /// ¿El mensaje arranca con la llamada de atención?
+  bool get hasAttention => _attention;
+
+  /// El mensaje sin la llamada de atención: es lo que se lee en la pantalla
+  /// de transmisión, porque la VVV es un aviso, no parte del texto.
+  String get bodyText => _attention && text.length > attentionPrefixLength
+      ? text.substring(attentionPrefixLength)
+      : text;
+
+  /// Posición en [bodyText] de la letra que enciende este tramo, o null si es
+  /// una pausa o si todavía está sonando la llamada de atención.
+  int? bodyIndex(int stepIndex) {
+    final letter = markLetter(stepIndex);
+    if (letter == null) return null;
+    if (_attention) {
+      if (letter < attentionPrefixLength) return null;
+      return letter - attentionPrefixLength;
+    }
+    return letter;
+  }
 
   bool get isEmpty => steps.isEmpty;
 
@@ -369,8 +419,7 @@ class MorseMessage {
     return units;
   }
 
-  Duration duration(int unitMs) =>
-      Duration(milliseconds: totalUnits * unitMs);
+  Duration duration(int unitMs) => Duration(milliseconds: totalUnits * unitMs);
 
   /// Código de la letra en la posición [letterIndex] de [text].
   String codeAt(int letterIndex) {

@@ -42,10 +42,15 @@ class _TelegraphPageState extends State<TelegraphPage>
   ];
 
   final TextEditingController _controller = TextEditingController(text: 'SOS');
-  MorseMessage _message = MorseMessage.encode('SOS');
+  MorseMessage _message = MorseMessage.encode('SOS', attention: true);
   SosBlinker? _blinker;
 
   int _unitMs = 200;
+
+  /// La VVV del principio: avisa a quien mira que empieza el mensaje. Se manda
+  /// por defecto porque el que recibe casi nunca está mirando justo cuando
+  /// arranca la primera letra.
+  bool _attention = true;
   int _step = 0;
   bool _playing = false;
   bool _useTorch = true;
@@ -76,7 +81,8 @@ class _TelegraphPageState extends State<TelegraphPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // La app pasó a segundo plano: el blinker seguiría encendiendo la
     // linterna y gastando batería a lo bobo. Se corta hasta que vuelva.
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       if (_playing) unawaited(_stop());
     }
   }
@@ -91,7 +97,16 @@ class _TelegraphPageState extends State<TelegraphPage>
   }
 
   void _updateText(String value) {
-    setState(() => _message = MorseMessage.encode(value));
+    setState(
+      () => _message = MorseMessage.encode(value, attention: _attention),
+    );
+  }
+
+  void _toggleAttention(bool value) {
+    setState(() {
+      _attention = value;
+      _message = MorseMessage.encode(_controller.text, attention: value);
+    });
   }
 
   void _useExample(String text) {
@@ -237,8 +252,11 @@ class _TelegraphPageState extends State<TelegraphPage>
             width: 54,
             height: 54,
             // El emblema es decorativo: sin la imagen la pantalla sigue igual.
-            errorBuilder: (context, error, stack) =>
-                Icon(Icons.light_mode_outlined, size: 40, color: scheme.primary),
+            errorBuilder: (context, error, stack) => Icon(
+              Icons.light_mode_outlined,
+              size: 40,
+              color: scheme.primary,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -417,8 +435,20 @@ class _TelegraphPageState extends State<TelegraphPage>
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             dense: true,
+            title: const Text('Llamada de atención (VVV)'),
+            subtitle: const Text(
+              'Tres V antes del mensaje: quien mira se da cuenta de que hay algo',
+            ),
+            value: _attention,
+            onChanged: _toggleAttention,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
             title: const Text('Pitido'),
-            subtitle: const Text('El mismo ritmo por el altavoz, por si no miran'),
+            subtitle: const Text(
+              'El mismo ritmo por el altavoz, por si no miran',
+            ),
             value: _beep,
             onChanged: _toggleBeep,
           ),
@@ -460,9 +490,13 @@ class _TelegraphPageState extends State<TelegraphPage>
     final lit = _useScreen && (current?.on ?? false);
     final bg = lit ? Colors.white : _night;
     final fg = lit ? Colors.black : Colors.white;
+    // El texto que se ve es el mensaje, sin la llamada de atención: la VVV se
+    // avisa con una etiqueta y va resaltada en el código.
     final letterIndex = _message.markLetter(_step);
+    final bodyIndex = _message.bodyIndex(_step);
     final element = _message.markElement(_step);
     final code = letterIndex == null ? '' : _message.codeAt(letterIndex);
+    final inAttention = letterIndex != null && bodyIndex == null;
     final speed = _speedLabels[_unitMs] ?? '$_unitMs ms';
     final lights = _useTorch && _useScreen
         ? 'linterna y pantalla'
@@ -507,13 +541,29 @@ class _TelegraphPageState extends State<TelegraphPage>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (inAttention)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Text(
+                                'Llamada de atención',
+                                style: TextStyle(
+                                  color: fg.withValues(alpha: 0.7),
+                                  fontSize: 13,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
                           Text.rich(
                             TextSpan(
                               children: [
-                                for (var i = 0; i < _message.text.length; i++)
+                                for (
+                                  var i = 0;
+                                  i < _message.bodyText.length;
+                                  i++
+                                )
                                   TextSpan(
-                                    text: _message.text[i],
-                                    style: i == letterIndex
+                                    text: _message.bodyText[i],
+                                    style: i == bodyIndex
                                         ? TextStyle(
                                             color: bg,
                                             backgroundColor: fg,

@@ -48,7 +48,12 @@ ratos para no comerse la batería).
 - **Brújula**: con un chat abierto, una flecha apunta hacia la otra persona.
 - **Compartir la app**: manda el APK por Quick Share o Bluetooth, sin internet.
 - **Telegrafía**: escribí cualquier frase y el teléfono la transmite en morse
-  con la pantalla, la linterna y un pitido: no solo el SOS.
+  con la pantalla, la linterna y un pitido: no solo el SOS. Antes del mensaje
+  va una llamada de atención (VVV) para que quien mira se dé cuenta.
+- **Recibir morse**: la cámara lee una luz que parpadea y la pasa a texto, sin
+  internet y sin saber morse. Si la cámara no sirve, se toca al ritmo.
+- **Aprender morse**: abecedario completo para ver y escuchar, palabras de
+  ejemplo y un juego corto, para quien nunca lo vio.
 - **Panel de señales de rescate**: SOS en morse con pantalla y linterna, sirena,
   símbolos X / V / flecha y contador de tiempo desde el último avistamiento.
   Sin radio: sirve aunque la malla esté en reposo o sin Bluetooth.
@@ -280,14 +285,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.7.1.apk`** (66 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.8.0.apk`** (68 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.7.1.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.7.1/SinRed-0.7.1.apk)
+[**SinRed-0.8.0.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.8.0/SinRed-0.8.0.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `c1fd86d57cdcbd4f1a56027bcfcfd8058366cf3b8ff02ce36acf6fc161447864`.
+SHA-256: `1e768970d2b736ea82a900e051de0240128813a0ed5cfee77dfa4f05f7212662`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -417,7 +422,24 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.7.1
+## 9. Qué cambió en la 0.8.0
+
+- **Recibir morse**: la app lee destellos con la cámara y los pasa a texto, sin
+  internet y sin saber morse. Mide cuánto dura cada encendido y cada pausa,
+  estima el ritmo del que transmite y arma las letras. Para cuando la cámara no
+  sirve —de noche, muy lejos, o con la cámara ocupada— hay un modo por toques:
+  se aprieta al ritmo de lo que se ve.
+- **Llamada de atención**: la telegrafía manda tres V antes del mensaje, para
+  que quien mira se dé cuenta de que empieza algo. El receptor la reconoce y la
+  marca como aviso, aparte del texto.
+- **Aprender morse**: el abecedario completo con cada letra para ver y
+  escuchar, la palabra que se escriba letra por letra, palabras de ejemplo y un
+  juego de cuatro opciones con aciertos.
+- Límite conocido y dicho en pantalla: sin un punto no hay con qué medir el
+  ritmo, así que un mensaje hecho solo de rayas (`T`, `M`, `O`) se lee como
+  puntos.
+
+## 10. Qué cambió en la 0.7.1
 
 - **Icono nuevo de la app**: el lanzador, el icono redondo y el temático de
   Android 13+ pasan a ser el emblema de Telegrafía —punto, raya y punto sobre
@@ -430,7 +452,7 @@ test/                           protocolo, malla, energía y humo de UI
 - El logo de la malla sigue en el arranque y en Ajustes: identifica a SinRed,
   no al modo.
 
-## 10. Qué cambió en la 0.7.0
+## 11. Qué cambió en la 0.7.0
 
 **Telegrafía**: el morse deja de ser solo el SOS y pasa a servir para cualquier
 mensaje.
@@ -464,7 +486,7 @@ repetición del mensaje con el mismo motor del SOS.
 Lo que sigue sin poder probarse sin teléfono: si el pitido se oye, si la
 linterna alumbra y si el brillo alcanza al sol.
 
-## 11. Qué cambió en la 0.6.0
+## 12. Qué cambió en la 0.6.0
 
 El teléfono como herramienta de rescate, sin radio de por medio:
 
@@ -498,7 +520,7 @@ El teléfono como herramienta de rescate, sin radio de por medio:
 Lo que no se puede probar sin un teléfono es la parte física: si la linterna
 alumbra, si la sirena suena fuerte y si el brillo forzado alcanza al sol.
 
-## 12. Qué cambió en la 0.5.5
+## 13. Qué cambió en la 0.5.5
 
 Identidad visual, sin tocar el funcionamiento de la malla:
 
@@ -513,7 +535,7 @@ Identidad visual, sin tocar el funcionamiento de la malla:
   blanco, también en Android 12+ (`windowSplashScreenBackground`).
 - El logo aparece en Ajustes, sobre la versión, y en este README.
 
-## 13. Qué cambió en la 0.5.4
+## 14. Qué cambió en la 0.5.4
 
 Todo para que la app gaste lo mínimo cuando la energía es el problema:
 
@@ -541,7 +563,7 @@ Todo para que la app gaste lo mínimo cuando la energía es el problema:
 Lo que no cambia: la app no puede medir su consumo real sin un teléfono, así
 que las horas de autonomía sigues siendo estimaciones de diseño.
 
-## 14. Qué cambió en la 0.5.3
+## 15. Qué cambió en la 0.5.3
 
 **Tablero de emergencia**, la información que se necesita después de un sismo o
 una inundación, ordenada para que sirva en vez de estorbar:
@@ -566,7 +588,7 @@ una inundación, ordenada para que sirva en vez de estorbar:
   de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
   y se publica de verdad). Total: **119 pruebas**.
 
-## 15. Qué cambió en la 0.5.2
+## 16. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -588,7 +610,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 16. Qué cambió en la 0.5.1
+## 17. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -621,7 +643,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 17. Licencia
+## 18. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),
