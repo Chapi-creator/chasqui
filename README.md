@@ -280,14 +280,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.7.0.apk`** (66 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.7.1.apk`** (66 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.7.0.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.7.0/SinRed-0.7.0.apk)
+[**SinRed-0.7.1.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.7.1/SinRed-0.7.1.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `bfd4de508c6779704a036d1d1d1ab38fc36e762e3c8f932dc445540c37c2d4aa`.
+SHA-256: `c1fd86d57cdcbd4f1a56027bcfcfd8058366cf3b8ff02ce36acf6fc161447864`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -417,7 +417,20 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.7.0
+## 9. Qué cambió en la 0.7.1
+
+- **Icono nuevo de la app**: el lanzador, el icono redondo y el temático de
+  Android 13+ pasan a ser el emblema de Telegrafía —punto, raya y punto sobre
+  el casi negro de la marca—. Se genera a todas las densidades y respeta la
+  zona segura del icono adaptativo.
+- **El alfabeto queda fijado con pruebas**: cuatro pruebas nuevas comparan los
+  56 códigos de la tabla (26 letras, 10 números, 19 signos y la ñ) contra el
+  ITU-R M.1677-1, uno por uno. Si alguien cambia un punto por una raya, la
+  suite falla antes de publicar.
+- El logo de la malla sigue en el arranque y en Ajustes: identifica a SinRed,
+  no al modo.
+
+## 10. Qué cambió en la 0.7.0
 
 **Telegrafía**: el morse deja de ser solo el SOS y pasa a servir para cualquier
 mensaje.
@@ -451,7 +464,7 @@ repetición del mensaje con el mismo motor del SOS.
 Lo que sigue sin poder probarse sin teléfono: si el pitido se oye, si la
 linterna alumbra y si el brillo alcanza al sol.
 
-## 10. Qué cambió en la 0.6.0
+## 11. Qué cambió en la 0.6.0
 
 El teléfono como herramienta de rescate, sin radio de por medio:
 
@@ -485,7 +498,7 @@ El teléfono como herramienta de rescate, sin radio de por medio:
 Lo que no se puede probar sin un teléfono es la parte física: si la linterna
 alumbra, si la sirena suena fuerte y si el brillo forzado alcanza al sol.
 
-## 11. Qué cambió en la 0.5.5
+## 12. Qué cambió en la 0.5.5
 
 Identidad visual, sin tocar el funcionamiento de la malla:
 
@@ -500,7 +513,7 @@ Identidad visual, sin tocar el funcionamiento de la malla:
   blanco, también en Android 12+ (`windowSplashScreenBackground`).
 - El logo aparece en Ajustes, sobre la versión, y en este README.
 
-## 12. Qué cambió en la 0.5.4
+## 13. Qué cambió en la 0.5.4
 
 Todo para que la app gaste lo mínimo cuando la energía es el problema:
 
@@ -528,7 +541,7 @@ Todo para que la app gaste lo mínimo cuando la energía es el problema:
 Lo que no cambia: la app no puede medir su consumo real sin un teléfono, así
 que las horas de autonomía sigues siendo estimaciones de diseño.
 
-## 13. Qué cambió en la 0.5.3
+## 14. Qué cambió en la 0.5.3
 
 **Tablero de emergencia**, la información que se necesita después de un sismo o
 una inundación, ordenada para que sirva en vez de estorbar:
@@ -553,7 +566,7 @@ una inundación, ordenada para que sirva en vez de estorbar:
   de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
   y se publica de verdad). Total: **119 pruebas**.
 
-## 14. Qué cambió en la 0.5.2
+## 15. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -575,7 +588,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 15. Qué cambió en la 0.5.1
+## 16. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -608,7 +621,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 16. Licencia
+## 17. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),

@@ -96,6 +96,52 @@ void main() {
     });
   });
 
+  group('alfabeto morse exacto', () {
+    // Tabla del ITU-R M.1677-1, copiada tal cual. Si alguien cambia un punto
+    // por una raya, esta prueba lo dice en vez de transmitir basura.
+    const itu = {
+      'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.',
+      'F': '..-.', 'G': '--.', 'H': '....', 'I': '..', 'J': '.---',
+      'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---',
+      'P': '.--.', 'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-',
+      'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-', 'Y': '-.--',
+      'Z': '--..',
+      '0': '-----', '1': '.----', '2': '..---', '3': '...--',
+      '4': '....-', '5': '.....', '6': '-....', '7': '--...',
+      '8': '---..', '9': '----.',
+      '.': '.-.-.-', ',': '--..--', '?': '..--..', "'": '.----.',
+      '/': '-..-.', '(': '-.--.', ')': '-.--.-', '"': '.-..-.',
+      '=': '-...-', '+': '.-.-.', '@': '.--.-.', ':': '---...',
+      '-': '-....-', '&': '.-...', ';': '-.-.-.', '_': '..--.-',
+      r'$': '...-..-', '!': '-.-.--',
+    };
+
+    test('letras, números y signos coinciden uno por uno', () {
+      for (final entry in itu.entries) {
+        expect(
+          morseAlphabet[entry.key],
+          entry.value,
+          reason: 'el código de ${entry.key} no es el del ITU',
+        );
+      }
+    });
+
+    test('la ñ y la exclamación inicial son las convenciones del español', () {
+      expect(morseAlphabet['Ñ'], '--.--');
+      expect(morseAlphabet['¡'], '--...-');
+    });
+
+    test('no hay códigos de más ni de menos en la tabla', () {
+      // 26 letras + 10 números + 19 signos + ñ.
+      expect(morseAlphabet.length, 56);
+    });
+
+    test('una frase con letras, números y signos sale en ese orden', () {
+      final message = MorseMessage.encode('ABC 123 ?');
+      expect(message.preview, '.- -... -.-. / .---- ..--- ...-- / ..--..');
+    });
+  });
+
   group('texto libre a morse', () {
     test('cada letra usa su código', () {
       final message = MorseMessage.encode('Hola');
