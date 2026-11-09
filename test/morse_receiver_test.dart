@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sinred/src/rescue/light_calibration.dart';
 import 'package:sinred/src/rescue/light_sampler.dart';
 import 'package:sinred/src/rescue/morse.dart';
 import 'package:sinred/src/rescue/morse_decoder.dart';
@@ -31,8 +32,11 @@ MorseReading decodeFromCamera(
   int frameMs = 33,
   List<int> dips = const [],
   bool noise = true,
+  LightCalibration? calibration,
+  double onLevel = 0.92,
+  double offLevel = 0.08,
 }) {
-  final sampler = LightSampler();
+  final sampler = LightSampler()..setCalibration(calibration);
   final decoder = MorseDecoder();
   final starts = <int>[];
   final ends = <int>[];
@@ -61,7 +65,7 @@ MorseReading decodeFromCamera(
     final dipped = dips.any((dip) => time >= dip && time < dip + frameMs);
     if (dipped) on = false;
 
-    var luma = on ? 0.92 : 0.08;
+    var luma = on ? onLevel : offLevel;
     if (noise) {
       // Temblor de la cámara: no cambia el estado, solo el número.
       luma += 0.015 * math.sin(time / 7.0);
@@ -407,6 +411,84 @@ void main() {
       }
       decoder.closeLetter();
       expect(decoder.reading.text, 'SOS');
+    });
+  });
+
+  group('calibración del lugar', () {
+    test('con umbrales medidos lee el mismo mensaje', () {
+      final reading = decodeFromCamera(
+        MorseMessage.encode('SOS'),
+        calibration: const LightCalibration(dark: 0.1, bright: 0.9),
+      );
+      expect(reading.text, 'SOS');
+    });
+
+    test('un brillo medido como "luz" se lee como encendido', () {
+      // Sin calibrar, un nivel fijo de 0.5 no llega al umbral de encendido
+      // (0.6) y la luz se ve apagada para siempre. Con la calibración del
+      // lugar —fondo 20 %, luz 60 %— ese mismo 0.5 es luz encendida.
+      final plain = LightSampler();
+      expect(plain.addSample(0.5, 0), isNull);
+      expect(plain.isOn, isFalse);
+
+      final calibrated = LightSampler()
+        ..setCalibration(const LightCalibration(dark: 0.2, bright: 0.6));
+      calibrated.addSample(0.5, 0);
+      calibrated.addSample(0.5, 33);
+      expect(calibrated.isOn, isTrue);
+    });
+
+    test('los umbrales calibrados mandan sobre los automáticos', () {
+      final sampler = LightSampler()
+        ..setCalibration(const LightCalibration(dark: 0.2, bright: 0.6));
+      expect(sampler.calibration?.turnOn, closeTo(0.44, 1e-9));
+      expect(sampler.calibration?.turnOff, closeTo(0.36, 1e-9));
+
+      // 0.42 está en la zona muerta: por debajo de 0.44 no enciende.
+      sampler.addSample(0.42, 0);
+      sampler.addSample(0.42, 33);
+      expect(sampler.isOn, isFalse);
+
+      // 0.5 enciende: se confirma en el fotograma siguiente y lo que se
+      // reporta es el tramo apagado que termina, con su duración completa.
+      expect(sampler.addSample(0.5, 66), isNull);
+      final off = sampler.addSample(0.5, 99);
+      expect(off?.on, isFalse);
+      expect(off?.ms, 66);
+
+      // Y 0.3, por debajo del umbral de apagado, cierra el tramo de luz.
+      sampler.addSample(0.3, 132);
+      final on = sampler.addSample(0.3, 165);
+      expect(on?.on, isTrue);
+      // La luz duró de 66 a 132: el tramo se mide desde que empezó el cambio.
+      expect(on?.ms, 66);
+    });
+
+    test('una calibración sin diferencia se ignora', () {
+      final sampler = LightSampler()
+        ..setCalibration(const LightCalibration(dark: 0.5, bright: 0.52));
+      expect(sampler.calibration, isNull);
+    });
+
+    test('con calibración hay señal aunque el contraste ahora sea bajo', () {
+      final sampler = LightSampler()
+        ..setCalibration(const LightCalibration(dark: 0.1, bright: 0.9));
+      sampler.addSample(0.9, 0);
+      sampler.addSample(0.9, 33);
+      expect(sampler.contrast, 0);
+      expect(sampler.hasSignal, isTrue);
+    });
+
+    test('el pitido de un fondo muy claro no impide leer', () {
+      // Cámara con exposición alta: el "apagado" ya viene claro. Con la
+      // calibración de ese lugar, el mensaje se lee igual.
+      final reading = decodeFromCamera(
+        MorseMessage.encode('AGUA'),
+        onLevel: 0.82,
+        offLevel: 0.62,
+        calibration: const LightCalibration(dark: 0.62, bright: 0.82),
+      );
+      expect(reading.text, 'AGUA');
     });
   });
 

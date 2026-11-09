@@ -67,6 +67,9 @@ class RadioScheduler extends ChangeNotifier {
         (_) => _refreshBattery(),
       );
     }
+    // La consulta de batería es asíncrona: si la radio se detuvo mientras
+    // tanto (cambio a demo, cierre de la app), no se rearma el ciclo.
+    if (!_running) return;
     _restartCycle();
   }
 

@@ -58,9 +58,17 @@ class _Pending {
 
 /// Reensambla los trozos que llegan por un enlace.
 class FrameReassembler {
-  FrameReassembler({this.timeout = const Duration(seconds: 15)});
+  FrameReassembler({
+    this.timeout = const Duration(seconds: 15),
+    this.maxPending = 64,
+  });
 
   final Duration timeout;
+
+  /// Tope de reensamblados a la vez. Cada tag nuevo crea una entrada; sin tope,
+  /// un enlace que manda trozos con tags distintos (o ruido) podía llenar la
+  /// memoria del teléfono en segundos.
+  final int maxPending;
   final Map<String, _Pending> _pending = <String, _Pending>{};
 
   /// Devuelve la trama completa o null si aún faltan trozos.
@@ -74,6 +82,10 @@ class FrameReassembler {
     if (total == 0 || index >= total) return null;
 
     final key = '$linkId:$tag';
+    if (!_pending.containsKey(key) && _pending.length >= maxPending) {
+      _prune();
+      if (_pending.length >= maxPending) _evictOldest();
+    }
     final entry = _pending.putIfAbsent(
       key,
       () => _Pending(total, DateTime.now()),
@@ -95,6 +107,20 @@ class FrameReassembler {
     }
     _prune();
     return null;
+  }
+
+  /// Saca el reensamblado más viejo: lo que llegue después de él tiene menos
+  /// chance de completarse que lo recién empezado.
+  void _evictOldest() {
+    String? oldestKey;
+    DateTime? oldest;
+    _pending.forEach((key, entry) {
+      if (oldest == null || entry.createdAt.isBefore(oldest!)) {
+        oldest = entry.createdAt;
+        oldestKey = key;
+      }
+    });
+    if (oldestKey != null) _pending.remove(oldestKey);
   }
 
   void _prune() {

@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../core/models.dart';
 import '../power/power_policy.dart';
+import '../rescue/light_calibration.dart';
+import '../rescue/morse_log.dart';
 
 /// Estado que sobrevive al cierre de la app: identidad, mensajes, contactos y
 /// mensajes aún sin entregar (store-and-forward real, no solo en memoria).
@@ -22,6 +24,8 @@ class AppSnapshot {
     this.shareLocation = false,
     this.showProximity = false,
     this.relayMode = false,
+    this.lightCalibration,
+    this.morseLog = const <MorseLogEntry>[],
   });
 
   final String displayName;
@@ -44,6 +48,12 @@ class AppSnapshot {
   /// El teléfono hace de repetidor de la malla (escucha casi siempre).
   final bool relayMode;
 
+  /// Umbrales del receptor de morse medidos en el lugar, si se calibró.
+  final LightCalibration? lightCalibration;
+
+  /// Mensajes leídos con el receptor de morse, del más nuevo al más viejo.
+  final List<MorseLogEntry> morseLog;
+
   Map<String, dynamic> toJson() => {
     'v': 1,
     'name': displayName,
@@ -56,6 +66,9 @@ class AppSnapshot {
     'shareLocation': shareLocation,
     'showProximity': showProximity,
     'relayMode': relayMode,
+    if (lightCalibration != null) 'lightCal': lightCalibration!.toJson(),
+    if (morseLog.isNotEmpty)
+      'morse': morseLog.map((entry) => entry.toJson()).toList(),
   };
 
   factory AppSnapshot.fromJson(Map<String, dynamic> json) => AppSnapshot(
@@ -73,7 +86,20 @@ class AppSnapshot {
     shareLocation: json['shareLocation'] as bool? ?? false,
     showProximity: json['showProximity'] as bool? ?? false,
     relayMode: json['relayMode'] as bool? ?? false,
+    lightCalibration: LightCalibration.fromJson(json['lightCal']),
+    morseLog: _decodeMorseLog(json['morse']),
   );
+
+  /// El historial no puede romper la carga entera: si el campo viene con otra
+  /// forma (estado escrito por una versión distinta o archivo tocado), se
+  /// descarta solo eso y se conservan identidad, contactos y mensajes.
+  static List<MorseLogEntry> _decodeMorseLog(Object? raw) {
+    if (raw is! List) return const <MorseLogEntry>[];
+    return raw
+        .map(MorseLogEntry.fromJson)
+        .whereType<MorseLogEntry>()
+        .toList();
+  }
 
   /// Acepta el formato actual (mapa con fecha) y el antiguo (base64 suelto)
   /// para no perder la cola de quien ya tenía estado guardado.

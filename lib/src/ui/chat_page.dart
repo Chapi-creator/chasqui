@@ -14,6 +14,7 @@ import '../platform/compass_service.dart';
 import '../platform/location_service.dart';
 import 'active_chat.dart';
 import 'board_page.dart';
+import 'light_send_sheet.dart';
 import 'widgets.dart';
 
 class ChatPage extends StatefulWidget {
@@ -245,6 +246,14 @@ class _ChatPageState extends State<ChatPage> {
                 ],
               ),
         actions: [
+          IconButton(
+            tooltip: 'Mandar con la linterna',
+            onPressed: () => showLightSendSheet(
+              context,
+              initialText: _controller.text.trim(),
+            ),
+            icon: const Icon(Icons.flashlight_on_outlined),
+          ),
           if (_isChannel)
             IconButton(
               tooltip: 'Tablero de emergencia',

@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../mesh/mesh_node.dart';
 import '../platform/rescue_service.dart';
 import '../rescue/morse.dart';
 import '../rescue/sighting.dart';
+import 'morse_field_test_page.dart';
 import 'morse_learn_page.dart';
 import 'morse_receiver_page.dart';
 import 'signal_panel_page.dart';
@@ -341,6 +344,25 @@ class _RescuePageState extends State<RescuePage> {
     );
   }
 
+  /// Abre el receptor con la calibración guardada. Sin pasarla, calibrar en
+  /// un lugar no serviría de nada al volver: los umbrales se perderían con la
+  /// pantalla.
+  void _openReceiver() {
+    final node = context.read<MeshNode>();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MorseReceiverPage(
+          calibration: node.lightCalibration,
+          onCalibrationChanged: node.setLightCalibration,
+          history: node.morseLog,
+          onSaveToHistory: node.addMorseLog,
+          onClearHistory: node.clearMorseLog,
+          onSendToChat: node.sendChannelMessage,
+        ),
+      ),
+    );
+  }
+
   void _openTelegraph() {
     Navigator.of(
       context,
@@ -363,15 +385,21 @@ class _RescuePageState extends State<RescuePage> {
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
+            onPressed: _openReceiver,
+            icon: const Icon(Icons.subtitles_outlined),
+            label: const Text('Leer un mensaje'),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const MorseReceiverPage(),
+                  builder: (_) => const MorseFieldTestPage(),
                 ),
               );
             },
-            icon: const Icon(Icons.subtitles_outlined),
-            label: const Text('Leer un mensaje'),
+            icon: const Icon(Icons.science_outlined, size: 18),
+            label: const Text('Probar la lectura en el campo'),
           ),
         ],
       ),

@@ -10,6 +10,8 @@ import 'package:sinred/src/data/state_store.dart';
 import 'package:sinred/src/mesh/mesh_node.dart';
 import 'package:sinred/src/mesh/router.dart';
 import 'package:sinred/src/power/power_policy.dart';
+import 'package:sinred/src/rescue/light_calibration.dart';
+import 'package:sinred/src/rescue/morse_log.dart';
 
 import 'support/fake_transport.dart';
 
@@ -248,4 +250,62 @@ void main() {
     await node.setRelayMode(false);
     expect(transport.idleLinkTimeout, const Duration(minutes: 1));
   });
+  test('la calibración del receptor queda guardada en el estado', () async {
+    const calibration = LightCalibration(dark: 0.18, bright: 0.86);
+    node.setLightCalibration(calibration);
+    expect(node.lightCalibration, calibration);
+
+    // `_persistNow` es asíncrono: se espera a que el archivo tenga el dato.
+    final file = File('${directory.path}${Platform.pathSeparator}'
+        'sinred_state.json');
+    Map<String, dynamic>? json;
+    for (var i = 0; i < 40; i++) {
+      await pumpEventQueue();
+      if (await file.exists()) {
+        json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        if (json['lightCal'] != null) break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    expect(json?['lightCal'], calibration.toJson());
+
+    // Quitarla también se guarda, para no volver a umbrales viejos. Se espera
+    // a que la escritura termine: si no, el tearDown borra el temporal mientras
+    // se está renombrando y en Windows eso falla.
+    node.setLightCalibration(null);
+    expect(node.lightCalibration, isNull);
+    for (var i = 0; i < 40; i++) {
+      await pumpEventQueue();
+      if (await file.exists()) {
+        final saved =
+            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        if (!saved.containsKey('lightCal')) break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+  });
+
+  test('el historial de morse queda del más nuevo al más viejo', () async {
+    for (var i = 0; i < MeshNode.morseLogLimit + 3; i++) {
+      node.addMorseLog(
+        MorseLogEntry(
+          text: 'M$i',
+          at: DateTime(2026, 1, 1).add(Duration(minutes: i)),
+          marks: i,
+        ),
+      );
+    }
+    await pumpEventQueue();
+    expect(node.morseLog.length, MeshNode.morseLogLimit);
+    expect(node.morseLog.first.text, 'M${MeshNode.morseLogLimit + 2}');
+    expect(
+      node.morseLog.last.text,
+      'M3',
+      reason: 'los más viejos se van cayendo del historial',
+    );
+
+    node.clearMorseLog();
+    expect(node.morseLog, isEmpty);
+  });
+
 }

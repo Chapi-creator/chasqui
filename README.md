@@ -51,8 +51,18 @@ ratos para no comerse la batería).
   con la pantalla, la linterna y un pitido: no solo el SOS.
 - **Recibir morse**: la cámara lee una luz que parpadea y la pasa a texto, sin
   internet y sin saber morse. Si la cámara no sirve, se toca al ritmo.
+  - **Calibrar en un toque**: dos segundos con la luz apagada y dos encendida
+    para que lea bien en ese lugar, con esa cámara.
+  - **Historial**: cada mensaje leído queda guardado, para copiarlo o mandarlo
+    al canal de la malla.
+  - **Confirmación por linterna**: el receptor contesta con dos destellos para
+    que el que transmite sepa que llegó.
+- **Prueba de campo**: manda ocho palabras de dificultad creciente y da el
+  porcentaje real medido con tu cámara y tu linterna, entre dos teléfonos.
 - **Aprender morse**: abecedario completo para ver y escuchar, palabras de
   ejemplo y un juego corto, para quien nunca lo vio.
+- **Mandar con la linterna desde el chat**: el texto que estás escribiendo sale
+  en morse por la linterna sin cambiar de pantalla y sin tocar la radio.
 - **Panel de señales de rescate**: SOS en morse con pantalla y linterna, sirena,
   símbolos X / V / flecha y contador de tiempo desde el último avistamiento.
   Sin radio: sirve aunque la malla esté en reposo o sin Bluetooth.
@@ -284,14 +294,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.8.2.apk`** (68 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.9.0.apk`** (71 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.8.2.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.8.2/SinRed-0.8.2.apk)
+[**SinRed-0.9.0.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.9.0/SinRed-0.9.0.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `6340cf8ba72cced4ed95b8d0e609cfe9e7f85dbd248d1734945dc039fe8794fb`.
+SHA-256: `97023a13b81f65922a9bb901dbccd986890ede4b7949bb5d2fbc998bcf90bf66`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -421,7 +431,41 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.8.2
+## 9. Qué cambió en la 0.9.0
+
+- **Calibrar el receptor**: un botón en la pantalla del receptor mide dos
+  segundos el fondo y dos la luz, y guarda los umbrales de ese lugar. Es lo que
+  arregla la mayoría de los "no me lee", que no son culpa de la app sino de la
+  exposición automática de cada cámara. La calibración sobrevive al cierre y se
+  puede repetir o quitar.
+- **Historial de lo leído**: cada mensaje terminado se guarda con hora, marcas y
+  ritmo estimado. Se puede copiar, mandar al canal de la malla o borrar. Los
+  últimos 50 quedan en el estado, así no se pierde lo que llegó.
+- **Confirmación por linterna**: cuando el mensaje termina y pasan dos segundos
+  de silencio, el receptor contesta con dos destellos cortos. Va después del
+  silencio a propósito: si saliera antes se confundiría con otra marca. Se puede
+  apagar y avisa si el teléfono no tiene linterna.
+- **Prueba de campo**: una pantalla nueva para medir de verdad, con dos
+  teléfonos. Transmite ocho palabras de dificultad creciente (de la más liviana
+  a la más pesada), se marca cada una como leída o fallada y al final queda el
+  porcentaje con un veredicto. Reemplaza la simulación por lo que pasa en el
+  patio.
+- **Menos batería sin destellos**: si no hay nada que leer, el receptor mira 20
+  fotogramas por segundo en lugar de 30 y vuelve al ritmo rápido en el primer
+  fotograma con luz. No baja más: a 50 ms todavía entran dos muestras en un
+  punto de 120 ms.
+- **Mandar con la linterna desde el chat**: el botón de linterna del chat abre
+  la transmisión con el texto que estabas escribiendo, con ritmo lento, normal o
+  rápido, y sin pasar por la radio.
+- **Barrido de errores**: se revisó lo que había quedado sin auditar y se
+  corrigieron cuatro cosas reales: un enlace BLE podía llenar la memoria con
+  trozos sin terminar (ahora hay tope y se descarta el más viejo), un estado
+  guardado con el historial en otro formato podía tirar la carga entera (ahora
+  se descarta solo ese campo), la radio podía rearmar el ciclo de escaneo si se
+  la detenía mientras consultaba la batería, y un paquete que reventaba al
+  procesarse quedaba como error sin dueño.
+
+### Lo que trajo la 0.8.2
 
 - **Recibir morse**: la app lee destellos con la cámara y los pasa a texto, sin
   internet y sin saber morse. Mide cuánto dura cada encendido y cada pausa,

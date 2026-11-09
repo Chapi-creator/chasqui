@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
@@ -13,6 +14,8 @@ import '../core/models.dart';
 import '../data/state_store.dart';
 import '../power/power_policy.dart';
 import '../power/radio_scheduler.dart';
+import '../rescue/light_calibration.dart';
+import '../rescue/morse_log.dart';
 import '../transport/ble/ble_transport.dart';
 import '../transport/demo_transport.dart';
 import '../transport/transport.dart';
@@ -33,13 +36,16 @@ class MeshNode extends ChangeNotifier {
     bool shareLocation = false,
     bool showProximity = false,
     bool relayMode = false,
+    LightCalibration? lightCalibration,
+    List<MorseLogEntry> morseLog = const <MorseLogEntry>[],
   }) : _transport = transport,
        _displayName = displayName,
        _radioMode = mode,
        _useDemo = useDemo,
        _shareLocation = shareLocation,
        _showProximity = showProximity,
-       _relayMode = relayMode {
+       _relayMode = relayMode,
+       _lightCalibration = lightCalibration {
     _router = MeshRouter(
       identity: identity,
       broadcast: _broadcast,
@@ -55,6 +61,7 @@ class MeshNode extends ChangeNotifier {
     )..addListener(_onSchedulerChanged);
     _scheduler.setMode(mode);
     _scheduler.setAlwaysListen(relayMode);
+    _morseLog.addAll(morseLog.take(morseLogLimit));
   }
 
   /// Id de conversación del canal abierto (no es un nodo: es "todos").
@@ -87,6 +94,8 @@ class MeshNode extends ChangeNotifier {
   bool _shareLocation;
   bool _showProximity;
   bool _relayMode;
+  LightCalibration? _lightCalibration;
+  final List<MorseLogEntry> _morseLog = <MorseLogEntry>[];
   GeoPoint? _myLocation;
   Timer? _retryTimer;
   Timer? _saveTimer;
@@ -146,6 +155,44 @@ class MeshNode extends ChangeNotifier {
 
   /// ¿Este teléfono está haciendo de repetidor para los demás?
   bool get relayMode => _relayMode;
+
+  /// Umbrales del receptor de morse medidos en el lugar (null = automáticos).
+  LightCalibration? get lightCalibration => _lightCalibration;
+
+  /// Cuántos mensajes leídos se guardan. Es un historial de consulta, no un
+  /// archivo: más que esto solo ocuparía lugar en el estado.
+  static const int morseLogLimit = 50;
+
+  /// Mensajes leídos con el receptor, del más nuevo al más viejo. Es una
+  /// vista: la pantalla del receptor la tiene abierta y ve los cambios.
+  List<MorseLogEntry> get morseLog => UnmodifiableListView(_morseLog);
+
+  void addMorseLog(MorseLogEntry entry) {
+    if (_morseLog.length >= morseLogLimit) {
+      _morseLog.removeRange(morseLogLimit - 1, _morseLog.length);
+    }
+    _morseLog.insert(0, entry);
+    _notify();
+    _scheduleSave();
+  }
+
+  void clearMorseLog() {
+    if (_morseLog.isEmpty) return;
+    _morseLog.clear();
+    _notify();
+    _scheduleSave();
+  }
+
+  /// Guarda (o borra, con null) la calibración del receptor. El detector la
+  /// recibe por la pantalla del receptor, que es la que abre la cámara.
+  void setLightCalibration(LightCalibration? value) {
+    if (_lightCalibration == value) return;
+    _lightCalibration = value != null && value.isUsable ? value : null;
+    _notify();
+    // Inmediato y no diferido: calificar es una acción deliberada y perderla
+    // por cerrar la app enseguida sería peor que una escritura de más.
+    unawaited(_persistNow());
+  }
 
   /// Tramas ajenas que este nodo reenvió desde que arrancó.
   int get relayedCount => _router.relayed;
@@ -774,6 +821,10 @@ class MeshNode extends ChangeNotifier {
     _shareLocation = snapshot.shareLocation;
     _showProximity = snapshot.showProximity;
     _relayMode = snapshot.relayMode;
+    _lightCalibration = snapshot.lightCalibration;
+    _morseLog
+      ..clear()
+      ..addAll(snapshot.morseLog.take(morseLogLimit));
     _messages
       ..clear()
       ..addAll(snapshot.messages);
@@ -820,7 +871,15 @@ class MeshNode extends ChangeNotifier {
     _subscriptions
       ..add(
         _transport.inbound.listen((packet) {
-          unawaited(_router.handlePacket(packet.bytes, linkId: packet.linkId));
+          // Una trama hostil o rota no puede quedar como error asíncrono sin
+          // dueño: se registra y la malla sigue.
+          unawaited(
+            _router
+                .handlePacket(packet.bytes, linkId: packet.linkId)
+                .catchError((Object error) {
+                  debugPrint('Malla: paquete descartado ($error)');
+                }),
+          );
         }),
       )
       ..add(_transport.linkEvents.listen(_handleLinkEvent));
@@ -1017,6 +1076,8 @@ class MeshNode extends ChangeNotifier {
       shareLocation: _shareLocation,
       showProximity: _showProximity,
       relayMode: _relayMode,
+      lightCalibration: _lightCalibration,
+      morseLog: List<MorseLogEntry>.from(_morseLog),
     ),
   );
 
@@ -1047,6 +1108,8 @@ class MeshNode extends ChangeNotifier {
       shareLocation: snapshot?.shareLocation ?? false,
       showProximity: snapshot?.showProximity ?? false,
       relayMode: snapshot?.relayMode ?? false,
+      lightCalibration: snapshot?.lightCalibration,
+      morseLog: snapshot?.morseLog ?? const <MorseLogEntry>[],
     );
     if (snapshot != null) node.restore(snapshot);
     return node;

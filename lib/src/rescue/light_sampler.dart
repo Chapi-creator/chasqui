@@ -1,3 +1,5 @@
+import 'light_calibration.dart';
+
 /// Un tramo de luz que acaba de terminar: encendido o apagado, y cuánto duró.
 class LightTransition {
   const LightTransition({required this.on, required this.ms});
@@ -47,6 +49,11 @@ class LightSampler {
   /// Cuánto pasado se mira para calcular los umbrales.
   final int windowMs;
 
+  /// Umbrales medidos en el lugar, si el usuario calibró. Mandan sobre los
+  /// automáticos: la calibración es justamente lo que se hizo para no tener
+  /// que adivinar el rango en cada cámara.
+  LightCalibration? _calibration;
+
   final List<_Sample> _window = [];
   bool _on = false;
   bool _started = false;
@@ -67,7 +74,18 @@ class LightSampler {
   /// leer: la pantalla lo avisa en lugar de escribir basura.
   double get contrast => _contrast;
 
-  bool get hasSignal => _contrast >= minRange;
+  /// Con calibración se sabe qué niveles corresponden a "apagado" y
+  /// "encendido" en este lugar, así que la cámara sirve aunque en este
+  /// momento el contraste sea bajo (la luz puede estar apagada ahora mismo).
+  bool get hasSignal => _calibration != null || _contrast >= minRange;
+
+  LightCalibration? get calibration => _calibration;
+
+  /// Cambia los umbrales. Se ignora una calibración inservible en vez de
+  /// dejar el detector sin señal para siempre.
+  void setCalibration(LightCalibration? value) {
+    _calibration = value != null && value.isUsable ? value : null;
+  }
 
   void reset() {
     _window.clear();
@@ -100,13 +118,18 @@ class LightSampler {
     }
     _contrast = high - low;
 
-    // Sin contraste todavía no se puede adaptar nada: pasa al principio, con
-    // la luz ya encendida, cuando la ventana solo tiene brillo. Ahí se usan
-    // umbrales fijos; en cuanto la luz se apaga aparece el contraste real y
-    // mandan los adaptativos.
+    // Con calibración los umbrales son absolutos y no dependen de la ventana.
+    // Sin ella, sin contraste todavía no se puede adaptar nada: pasa al
+    // principio, con la luz ya encendida, cuando la ventana solo tiene brillo.
+    // Ahí se usan umbrales fijos; en cuanto la luz se apaga aparece el
+    // contraste real y mandan los adaptativos.
     final double turnOn;
     final double turnOff;
-    if (_contrast < minRange) {
+    final calibrated = _calibration;
+    if (calibrated != null) {
+      turnOn = calibrated.turnOn;
+      turnOff = calibrated.turnOff;
+    } else if (_contrast < minRange) {
       turnOn = 0.6;
       turnOff = 0.45;
     } else {
