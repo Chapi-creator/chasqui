@@ -77,14 +77,9 @@ void main() {
     });
   });
 
-  group('telegrafía con llamada de atención', () {
-    testWidgets('el SOS arranca con la VVV y se puede apagar', (tester) async {
+  group('telegrafía', () {
+    testWidgets('el SOS está listo para transmitir', (tester) async {
       await pumpPage(tester, const TelegraphPage());
-      expect(find.text('...- ...- ...- / ... --- ...'), findsOneWidget);
-
-      await tester.tap(find.text('Llamada de atención (VVV)'));
-      await tester.pump();
-
       expect(find.text('... --- ...'), findsOneWidget);
     });
   });

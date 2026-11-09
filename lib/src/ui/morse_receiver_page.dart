@@ -56,16 +56,26 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
   int _pressStartMs = 0;
   int? _lastReleaseMs;
 
+  /// Cuándo se cerró el último tramo. Sirve para saber si el silencio ya es tan
+  /// largo que la letra en curso terminó.
+  int _lastChangeMs = 0;
+  Timer? _silenceTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _silenceTimer = Timer.periodic(
+      const Duration(milliseconds: 300),
+      (_) => _checkSilence(),
+    );
     if (_cameraWanted) unawaited(_startCamera());
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _silenceTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     // Sin setState: el árbol ya se está desarmando.
     final controller = _camera;
@@ -177,6 +187,7 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
     _luma = luma;
 
     if (change != null) {
+      _lastChangeMs = now;
       if (change.on) {
         _decoder.mark(change.ms);
       } else {
@@ -192,20 +203,58 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
     }
   }
 
-  /// Brillo medio del plano de luminancia, muestreado: leer todos los píxeles
-  /// de cada fotograma calentaría el teléfono sin ganar precisión.
+  /// Brillo de "lo más claro" del centro del cuadro, entre 0 y 1.
+  ///
+  /// Promediar todo el fotograma era el error de fondo: a unos metros la
+  /// linterna ocupa una parte chica y su encendido se diluye en el fondo, así
+  /// que la cámara "no veía" nada. Después se probó el promedio del centro,
+  /// pero una luz lejana sigue pesando poco. Lo que se mide ahora es el brillo
+  /// medio de la décima parte más clara del recuadro: si la linterna está
+  /// encendida, esos son sus píxeles; si está apagada, el fondo. Se calcula con
+  /// un histograma de 256 valores, así no hay que ordenar píxeles.
   double _meanLuma(CameraImage image) {
     if (image.planes.isEmpty) return 0;
-    final bytes = image.planes.first.bytes;
+    final plane = image.planes.first;
+    final bytes = plane.bytes;
     if (bytes.isEmpty) return 0;
-    final step = math.max(1, bytes.length ~/ 800);
-    var sum = 0;
+
+    final width = image.width;
+    final height = image.height;
+    final stride = plane.bytesPerRow;
+    if (width <= 0 || height <= 0 || stride <= 0) return 0;
+
+    final x0 = (width * 0.25).round();
+    final x1 = (width * 0.75).round();
+    final y0 = (height * 0.25).round();
+    final y1 = (height * 0.75).round();
+    final stepX = math.max(1, (x1 - x0) ~/ 60);
+    final stepY = math.max(1, (y1 - y0) ~/ 60);
+
+    final histogram = List<int>.filled(256, 0);
     var count = 0;
-    for (var i = 0; i < bytes.length; i += step) {
-      sum += bytes[i];
-      count++;
+    for (var y = y0; y < y1; y += stepY) {
+      final row = y * stride;
+      for (var x = x0; x < x1; x += stepX) {
+        final index = row + x;
+        if (index >= bytes.length) break;
+        histogram[bytes[index]]++;
+        count++;
+      }
     }
-    return count == 0 ? 0 : (sum / count) / 255.0;
+    if (count == 0) return 0;
+
+    // Los más claros: el 10 % de los píxeles del recuadro.
+    final wanted = math.max(1, (count * 0.1).round());
+    var seen = 0;
+    var sum = 0;
+    for (var level = 255; level >= 0 && seen < wanted; level--) {
+      final hits = histogram[level];
+      if (hits == 0) continue;
+      final take = math.min(hits, wanted - seen);
+      sum += level * take;
+      seen += take;
+    }
+    return seen == 0 ? 0 : (sum / seen) / 255.0;
   }
 
   void _toggleCamera(bool value) {
@@ -224,6 +273,7 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
       final gap = now - _lastReleaseMs!;
       if (gap >= 40) _decoder.gap(gap);
     }
+    _lastChangeMs = now;
     setState(() {
       _pressing = true;
       _pressStartMs = now;
@@ -234,10 +284,25 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
     final now = _clock.elapsedMilliseconds;
     final ms = now - _pressStartMs;
     if (ms >= 40) _decoder.mark(ms);
+    _lastChangeMs = now;
     setState(() {
       _pressing = false;
       _lastReleaseMs = now;
     });
+  }
+
+  /// Cierra la letra cuando el silencio ya dura más que una pausa de letra.
+  /// Sólo mira; no toca nada si la luz sigue encendida o no hay nada abierto.
+  void _checkSilence() {
+    if (_disposed || !mounted) return;
+    if (_sampler.isOn || _pressing) return;
+    final reading = _decoder.reading;
+    if (reading.pending.isEmpty) return;
+    final unit = reading.unitMs ?? 200;
+    final threshold = math.max(900, (unit * 4.6).round());
+    if (_clock.elapsedMilliseconds - _lastChangeMs < threshold) return;
+    _decoder.closeLetter();
+    setState(() {});
   }
 
   /// Cierra la letra en curso: sin esto, la última letra del mensaje a mano
@@ -257,7 +322,7 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
   }
 
   Future<void> _copy() async {
-    final text = _decoder.reading.message;
+    final text = _decoder.reading.text;
     if (text.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
@@ -317,9 +382,9 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
           _cardTitle(scheme, Icons.visibility_outlined, 'Leer un destello'),
           const SizedBox(height: 8),
           Text(
-            'Apuntá la cámara a la luz que parpadea y dejá el teléfono quieto. '
-            'El brillo se convierte en letras acá, sin internet y sin saber '
-            'morse.',
+            'Apuntá la cámara a la luz que parpadea, con la luz dentro del '
+            'recuadro, y dejá el teléfono quieto. El brillo se convierte en '
+            'letras acá, sin internet y sin saber morse.',
             style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
           ),
         ],
@@ -377,14 +442,19 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
           Text(
             _cameraError ??
                 (_cameraReady
-                    ? 'Si el brillo no se mueve, acercate o tapá la luz con la '
-                          'mano: la cámara necesita ver el encendido y el '
-                          'apagado para medir.'
+                    ? (_sampler.hasSignal
+                          ? 'Poné la luz dentro del recuadro y dejá el teléfono '
+                                'quieto.'
+                          : 'La cámara no ve contraste: acercate, apuntá al '
+                                'recuadro o tapá la luz con la mano para que vea '
+                                'también el apagado.')
                     : 'Encendé la cámara para leer.'),
             style: TextStyle(
               fontSize: 12,
               color: _cameraError != null
                   ? scheme.error
+                  : (_cameraReady && !_sampler.hasSignal)
+                  ? const Color(0xFFB26A00)
                   : scheme.onSurfaceVariant,
             ),
           ),
@@ -398,6 +468,28 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
       fit: StackFit.expand,
       children: [
         child,
+        // El recuadro marca lo que se mide: solo el centro del cuadro. El
+        // fondo de alrededor suele ser más grande que la luz y arruinaba la
+        // lectura cuando se promediaba todo.
+        IgnorePointer(
+          child: Center(
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              heightFactor: 0.5,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: _sampler.hasSignal
+                        ? const Color(0xFF16C489)
+                        : Colors.white54,
+                    width: 2,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ),
         Align(
           alignment: Alignment.topLeft,
           child: Container(
@@ -408,7 +500,7 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              _sampler.isOn ? 'LUZ' : '—',
+              _sampler.isOn ? 'LUZ' : (_sampler.hasSignal ? '—' : 'sin señal'),
               style: TextStyle(
                 color: _sampler.isOn ? const Color(0xFF16C489) : Colors.white70,
                 fontSize: 11,
@@ -451,23 +543,10 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (reading.hasAttention)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      'Llamada de atención',
-                      style: TextStyle(
-                        color: const Color(0xFFFFB020),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                  ),
                 SelectableText(
-                  reading.message.isEmpty ? '· · ·' : reading.message,
+                  reading.text.isEmpty ? '· · ·' : reading.text,
                   style: TextStyle(
-                    color: reading.message.isEmpty
+                    color: reading.text.isEmpty
                         ? Colors.white38
                         : const Color(0xFF16C489),
                     fontFamily: 'monospace',
@@ -610,8 +689,8 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
               'La cámara necesita ver el encendido y el apagado. Si la luz '
               'llena todo el cuadro, alejate un poco; si es de noche y el '
               'fondo es negro, apuntá a que la luz ocupe la mitad. Un mensaje '
-              'hecho solo de rayas (T, M, O) se lee como puntos: sin un punto '
-              'no hay con qué medir el ritmo.',
+              'de una sola raya (T) puede leerse como punto (E): no hay otra '
+              'marca con la cual comparar el ritmo.',
               style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
             ),
           ),

@@ -158,7 +158,7 @@ class _MorseLearnPageState extends State<MorseLearnPage>
           _playingLetter = null;
         });
       },
-      letterOf: _word.bodyIndex,
+      letterOf: _word.markLetter,
     );
   }
 

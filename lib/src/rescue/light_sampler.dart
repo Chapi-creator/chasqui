@@ -16,16 +16,21 @@ class LightTransition {
 /// no son fijos: se calculan sobre el mínimo y el máximo de los últimos
 /// segundos, con dos umbrales distintos (histéresis) para que un parpadeo de
 /// ruido no cuente como un punto.
+///
+/// Un cambio de estado no se acepta por un solo fotograma: tiene que sostenerse
+/// [minSegmentMs]. Sin esa espera, un parpadeo de la exposición corta una raya
+/// en dos y el mensaje sale sin sentido. La duración se mide desde que el
+/// cambio empezó, no desde que se confirmó, así el temblor no acorta el tramo.
 class LightSampler {
   LightSampler({
-    this.minSegmentMs = 40,
-    this.onRatio = 0.62,
-    this.offRatio = 0.38,
-    this.minRange = 0.05,
-    this.windowMs = 8000,
+    this.minSegmentMs = 45,
+    this.onRatio = 0.6,
+    this.offRatio = 0.4,
+    this.minRange = 0.04,
+    this.windowMs = 6000,
   });
 
-  /// Un cambio más corto que esto es ruido de la cámara, no morse.
+  /// Cuánto tiene que sostenerse un cambio para creerle.
   final int minSegmentMs;
 
   /// Brillo (relativo al rango reciente) que hace falta para pasar a "luz".
@@ -47,13 +52,29 @@ class LightSampler {
   bool _started = false;
   int _sinceMs = 0;
 
+  /// Estado que se está esperando confirmar, y desde cuándo.
+  bool? _candidate;
+  int _candidateSinceMs = 0;
+
+  /// Última diferencia entre lo más oscuro y lo más claro de la ventana.
+  double _contrast = 0;
+
   bool get isOn => _on;
+
+  /// Contraste que está viendo la cámara ahora. Si es bajo, no hay nada que
+  /// leer: la pantalla lo avisa en lugar de escribir basura.
+  double get contrast => _contrast;
+
+  bool get hasSignal => _contrast >= minRange;
 
   void reset() {
     _window.clear();
     _on = false;
     _started = false;
     _sinceMs = 0;
+    _candidate = null;
+    _candidateSinceMs = 0;
+    _contrast = 0;
   }
 
   /// Agrega una muestra de brillo (0 = negro, 1 = blanco) con su marca de
@@ -74,26 +95,48 @@ class LightSampler {
       if (sample.value < low) low = sample.value;
       if (sample.value > high) high = sample.value;
     }
-    if (high - low < minRange) return null;
+    _contrast = high - low;
 
-    final range = high - low;
-    final turnOn = low + range * onRatio;
-    final turnOff = low + range * offRatio;
+    // Sin contraste todavía no se puede adaptar nada: pasa al principio, con
+    // la luz ya encendida, cuando la ventana solo tiene brillo. Ahí se usan
+    // umbrales fijos; en cuanto la luz se apaga aparece el contraste real y
+    // mandan los adaptativos.
+    final double turnOn;
+    final double turnOff;
+    if (_contrast < minRange) {
+      turnOn = 0.6;
+      turnOff = 0.45;
+    } else {
+      final range = high - low;
+      turnOn = low + range * onRatio;
+      turnOff = low + range * offRatio;
+    }
 
     final wanted = _on ? value > turnOff : value > turnOn;
-    if (wanted == _on) return null;
-
-    final duration = timeMs - _sinceMs;
-    if (duration < minSegmentMs) {
-      // Demasiado corto para ser morse: se descarta el intento y el reloj
-      // sigue desde el mismo estado, como si el destello no hubiera existido.
-      _sinceMs = timeMs;
+    if (wanted == _on) {
+      _candidate = null;
       return null;
     }
 
-    final ended = LightTransition(on: _on, ms: duration);
+    // El cambio recién empieza: se anota cuándo, sin tocar el tramo en curso.
+    if (_candidate != wanted) {
+      _candidate = wanted;
+      _candidateSinceMs = timeMs;
+      return null;
+    }
+
+    if (timeMs - _candidateSinceMs < minSegmentMs) return null;
+
+    final duration = _candidateSinceMs - _sinceMs;
+    // El tramo que termina fue un temblor, no un símbolo: no se reporta, pero
+    // el reloj avanza igual. Si no avanzara, el cambio se reintentaría para
+    // siempre y el receptor se quedaría trabado.
+    final ended = duration >= minSegmentMs
+        ? LightTransition(on: _on, ms: duration)
+        : null;
     _on = wanted;
-    _sinceMs = timeMs;
+    _sinceMs = _candidateSinceMs;
+    _candidate = null;
     return ended;
   }
 }

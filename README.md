@@ -48,8 +48,7 @@ ratos para no comerse la batería).
 - **Brújula**: con un chat abierto, una flecha apunta hacia la otra persona.
 - **Compartir la app**: manda el APK por Quick Share o Bluetooth, sin internet.
 - **Telegrafía**: escribí cualquier frase y el teléfono la transmite en morse
-  con la pantalla, la linterna y un pitido: no solo el SOS. Antes del mensaje
-  va una llamada de atención (VVV) para que quien mira se dé cuenta.
+  con la pantalla, la linterna y un pitido: no solo el SOS.
 - **Recibir morse**: la cámara lee una luz que parpadea y la pasa a texto, sin
   internet y sin saber morse. Si la cámara no sirve, se toca al ritmo.
 - **Aprender morse**: abecedario completo para ver y escuchar, palabras de
@@ -285,14 +284,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.8.0.apk`** (68 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.8.1.apk`** (68 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.8.0.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.8.0/SinRed-0.8.0.apk)
+[**SinRed-0.8.1.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.8.1/SinRed-0.8.1.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `1e768970d2b736ea82a900e051de0240128813a0ed5cfee77dfa4f05f7212662`.
+SHA-256: `f31a8a287b573ad8f714f2d040fc083164ea7c7b5b662f56723794dd3235ee9a`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -422,22 +421,33 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.8.0
+## 9. Qué cambió en la 0.8.1
 
 - **Recibir morse**: la app lee destellos con la cámara y los pasa a texto, sin
   internet y sin saber morse. Mide cuánto dura cada encendido y cada pausa,
   estima el ritmo del que transmite y arma las letras. Para cuando la cámara no
   sirve —de noche, muy lejos, o con la cámara ocupada— hay un modo por toques:
   se aprieta al ritmo de lo que se ve.
-- **Llamada de atención**: la telegrafía manda tres V antes del mensaje, para
-  que quien mira se dé cuenta de que empieza algo. El receptor la reconoce y la
-  marca como aviso, aparte del texto.
 - **Aprender morse**: el abecedario completo con cada letra para ver y
   escuchar, la palabra que se escriba letra por letra, palabras de ejemplo y un
   juego de cuatro opciones con aciertos.
-- Límite conocido y dicho en pantalla: sin un punto no hay con qué medir el
-  ritmo, así que un mensaje hecho solo de rayas (`T`, `M`, `O`) se lee como
-  puntos.
+- **Lectura mucho más firme** (la 0.8.0 leía mal):
+  - Un cambio de luz no se acepta por un solo fotograma: tiene que sostenerse.
+    Antes, un temblor de exposición partía una raya en dos y el mensaje salía
+    sin sentido.
+  - El brillo ya no se promedia sobre todo el cuadro. Se mide el promedio de la
+    décima parte más clara del recuadro central, así una linterna lejana pesa
+    aunque ocupe pocos píxeles.
+  - El ritmo ya no se toma de la marca más corta: se prueban varios ritmos y
+    queda el que mejor explica todas las duraciones. Una marca imprecisa ya no
+    reescribe el mensaje que se venía leyendo.
+  - Las pausas de un fotograma dentro de una raya se funden con ella, y la
+    última letra se cierra sola cuando el silencio ya es de letra.
+- Se quitó la llamada de atención (VVV): sumaba un paso más a cada mensaje y no
+  aportaba a la lectura.
+- Límite conocido: un mensaje de una sola raya (`T`) puede leerse como punto
+  (`E`), porque sin más marcas no hay con qué distinguir el ritmo. Con dos o
+  más rayas, las pausas ya alcanzan para leerlo bien.
 
 ## 10. Qué cambió en la 0.7.1
 
