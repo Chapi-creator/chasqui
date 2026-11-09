@@ -89,10 +89,10 @@ class _MorseLearnPageState extends State<MorseLearnPage>
     setState(() => _useTorch = available);
   }
 
+  /// Apaga todo y suelta el reproductor: al terminar no queda un audio en
+  /// silencio corriendo de fondo.
   Future<void> _silence() async {
-    await RescueService.setTorch(false);
-    await RescueService.setTone(false);
-    await RescueService.keepAwake(false);
+    await RescueService.release();
   }
 
   void _stopPlaying() {

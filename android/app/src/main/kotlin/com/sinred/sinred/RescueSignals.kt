@@ -27,7 +27,6 @@ class RescueSignals(context: Context, private val window: Window) {
         context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
 
     private var torchCameraId: String? = null
-    private var torchOn = false
     private var siren: AudioTrack? = null
     private var tone: AudioTrack? = null
 
@@ -61,10 +60,11 @@ class RescueSignals(context: Context, private val window: Window) {
     /** Devuelve true si la linterna quedó como se pidió. */
     fun setTorch(on: Boolean): Boolean {
         val id = torchCamera() ?: return false
-        if (on == torchOn) return true
+        // Siempre se pide, sin recordar el estado: si otra app se quedó con la
+        // cámara y la soltó a mitad del mensaje, el próximo punto vuelve a
+        // encender la linterna en lugar de creer que ya estaba encendida.
         return try {
             cameraManager?.setTorchMode(id, on)
-            torchOn = on
             true
         } catch (error: CameraAccessException) {
             // Otra app tiene la cámara abierta (videollamada, cámara, escáner).
@@ -163,17 +163,45 @@ class RescueSignals(context: Context, private val window: Window) {
     }
 
     fun setMorseTone(on: Boolean): Boolean {
+        // El reproductor se arma una sola vez y se abre y cierra con el
+        // volumen. Crear y liberar un AudioTrack en cada punto tardaba decenas
+        // de milisegundos y el pitido no coincidía con la luz.
         if (!on) {
-            stopTone()
+            muteTone()
             return true
         }
-        if (tone != null) return true
+        val existing = tone
+        if (existing != null) {
+            return try {
+                existing.setVolume(1f)
+                if (existing.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                    existing.play()
+                }
+                true
+            } catch (error: Exception) {
+                stopTone()
+                false
+            }
+        }
         return try {
-            tone = buildTone()?.also { it.play() }
-            tone != null
+            val built = buildTone() ?: return false
+            built.setVolume(1f)
+            built.play()
+            tone = built
+            true
         } catch (error: Exception) {
             stopTone()
             false
+        }
+    }
+
+    /** Silencio entre puntos, sin soltar el reproductor. */
+    private fun muteTone() {
+        val track = tone ?: return
+        try {
+            track.setVolume(0f)
+        } catch (error: Exception) {
+            // Ya estaba liberado.
         }
     }
 

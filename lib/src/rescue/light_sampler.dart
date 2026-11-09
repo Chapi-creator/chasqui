@@ -52,9 +52,11 @@ class LightSampler {
   bool _started = false;
   int _sinceMs = 0;
 
-  /// Estado que se está esperando confirmar, y desde cuándo.
+  /// Estado que se está esperando confirmar, desde cuándo y en cuántos
+  /// fotogramas seguidos se vio.
   bool? _candidate;
   int _candidateSinceMs = 0;
+  int _candidateSamples = 0;
 
   /// Última diferencia entre lo más oscuro y lo más claro de la ventana.
   double _contrast = 0;
@@ -74,6 +76,7 @@ class LightSampler {
     _sinceMs = 0;
     _candidate = null;
     _candidateSinceMs = 0;
+    _candidateSamples = 0;
     _contrast = 0;
   }
 
@@ -114,7 +117,9 @@ class LightSampler {
 
     final wanted = _on ? value > turnOff : value > turnOn;
     if (wanted == _on) {
+      // Volvió al estado de antes: era un temblor de un fotograma.
       _candidate = null;
+      _candidateSamples = 0;
       return null;
     }
 
@@ -122,10 +127,15 @@ class LightSampler {
     if (_candidate != wanted) {
       _candidate = wanted;
       _candidateSinceMs = timeMs;
+      _candidateSamples = 1;
       return null;
     }
 
-    if (timeMs - _candidateSinceMs < minSegmentMs) return null;
+    // Un cambio se cree recién cuando se repite en el fotograma siguiente. Con
+    // una espera en milisegundos, un punto rápido podía terminar antes de que
+    // el cambio se confirmara y el punto desaparecía del mensaje.
+    _candidateSamples++;
+    if (_candidateSamples < 2) return null;
 
     final duration = _candidateSinceMs - _sinceMs;
     // El tramo que termina fue un temblor, no un símbolo: no se reporta, pero
@@ -137,6 +147,7 @@ class LightSampler {
     _on = wanted;
     _sinceMs = _candidateSinceMs;
     _candidate = null;
+    _candidateSamples = 0;
     return ended;
   }
 }

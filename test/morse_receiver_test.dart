@@ -294,4 +294,137 @@ void main() {
       expect(sampler.hasSignal, isFalse);
     });
   });
+
+  group('punto corto a 30 fotogramas', () {
+    test('un punto de 120 ms no se pierde', () {
+      // Luz 4 fotogramas, pausa 4 fotogramas: 132 ms cada tramo.
+      final values = <double>[
+        for (var block = 0; block < 6; block++) ...List.filled(4, block.isEven ? 0.9 : 0.05),
+      ];
+      final sampler = LightSampler();
+      final transitions = <LightTransition>[];
+      for (var i = 0; i < values.length; i++) {
+        final change = sampler.addSample(values[i], i * 33);
+        if (change != null) transitions.add(change);
+      }
+      expect(transitions.length, greaterThanOrEqualTo(4));
+      for (final transition in transitions.skip(1)) {
+        expect(transition.ms, inInclusiveRange(99, 165));
+      }
+    });
+  });
+
+  group('precisión con ruido', () {
+    MorseReading readWithNoise(
+      String text, {
+      int unitMs = 200,
+      double jitter = 0.25,
+      int seed = 5,
+      double dropRate = 0,
+    }) {
+      final random = math.Random(seed);
+      final message = MorseMessage.encode(text);
+      final sampler = LightSampler();
+      final decoder = MorseDecoder();
+      final on = <bool>[];
+      final durations = <int>[];
+      for (final step in message.steps) {
+        final base = step.units * unitMs;
+        final noisy =
+            (base * (1 + (random.nextDouble() * 2 - 1) * jitter)).round();
+        on.add(step.on);
+        durations.add(math.max(20, noisy));
+      }
+      var time = 0;
+      var index = 0;
+      var end = durations.first;
+      for (; index < durations.length; time += 33) {
+        if (time >= end) {
+          if (index == durations.length - 1) break;
+          index++;
+          end += durations[index];
+        }
+        var luma = on[index] ? 0.9 : 0.1;
+        // Fotograma perdido: la cámara lo entrega al revés.
+        if (random.nextDouble() < dropRate) luma = on[index] ? 0.1 : 0.9;
+        final change = sampler.addSample(luma, time);
+        if (change == null) continue;
+        if (change.on) {
+          decoder.mark(change.ms);
+        } else {
+          decoder.gap(change.ms);
+        }
+      }
+      decoder.closeLetter();
+      return decoder.reading;
+    }
+
+    test('aguanta un 25 % de temblor en ritmos distintos', () {
+      for (final unit in [120, 200, 320]) {
+        for (final text in ['SOS', 'HOLA', 'ESTOY BIEN', 'NECESITO AGUA']) {
+          expect(
+            readWithNoise(text, unitMs: unit).text,
+            text,
+            reason: '"$text" a $unit ms',
+          );
+        }
+      }
+    });
+
+    test('con fotogramas perdidos igual lee casi todo', () {
+      var chars = 0;
+      var ok = 0;
+      for (final text in [
+        'SOS',
+        'HOLA',
+        'AGUA',
+        'ESTOY BIEN',
+        'MANDEN AYUDA',
+      ]) {
+        final reading = readWithNoise(
+          text,
+          jitter: 0.2,
+          dropRate: 0.03,
+          seed: 11,
+        );
+        chars += text.length;
+        for (var i = 0; i < text.length && i < reading.text.length; i++) {
+          if (text[i] == reading.text[i]) ok++;
+        }
+      }
+      expect(ok / chars, greaterThan(0.9));
+    });
+
+    test('una pausa real de 66 ms no se fusiona con la raya', () {
+      // Números medidos en una simulación de SOS con 30 % de temblor: la pausa
+      // de 66 ms es la de la O y antes se comía, dejando M en vez de O.
+      final decoder = MorseDecoder();
+      const marks = [99, 132, 132, 264, 396, 330, 165, 99, 132];
+      const gaps = [132, 132, 429, 165, 66, 429, 132, 132];
+      for (var i = 0; i < marks.length; i++) {
+        decoder.mark(marks[i]);
+        if (i < gaps.length) decoder.gap(gaps[i]);
+      }
+      decoder.closeLetter();
+      expect(decoder.reading.text, 'SOS');
+    });
+  });
+
+  group('abecedario', () {
+    test('cada código es único y vuelve a su letra', () {
+      expect(reverseMorse.length, morseAlphabet.length);
+      for (final entry in morseAlphabet.entries) {
+        expect(morseSymbolFor(entry.value), entry.key);
+      }
+    });
+
+    test('el SOS de la app coincide con sus tramos', () {
+      expect(sosSteps.length, 18);
+      expect(sosOnSteps.length, 9);
+      for (var i = 0; i < sosSteps.length; i++) {
+        expect(sosSteps[i].on, sosOnSteps.contains(i), reason: 'tramo $i');
+      }
+      expect(sosCycleDuration().inMilliseconds, 34 * sosUnitMs);
+    });
+  });
 }

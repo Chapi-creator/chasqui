@@ -131,13 +131,10 @@ class MorseDecoder {
   MorseReading _decode() {
     if (_events.isEmpty) return MorseReading.empty;
 
-    // Antes de medir nada: fuera los parpadeos de un fotograma, que dejan dos
-    // marcas pegadas donde hay una sola raya.
-    final base = _mergeFlicker(_events);
-    final unit = _estimateUnit(base);
+    final unit = _estimateUnit(_events);
     if (unit == null) return MorseReading.empty;
 
-    final condensed = _condense(base, unit);
+    final condensed = _condense(_events, unit);
     final buffer = StringBuffer();
     final symbols = <String>[];
     var marks = 0;
@@ -175,24 +172,10 @@ class MorseDecoder {
     );
   }
 
-  /// Descarta las pausas de uno o dos fotogramas y une las marcas que dejan
-  /// atrás.
-  List<_Event> _mergeFlicker(List<_Event> events) {
-    final out = <_Event>[];
-    for (final event in events) {
-      if (!event.on && event.ms < 60) continue;
-      if (event.on && out.isNotEmpty && out.last.on) {
-        out[out.length - 1] = _Event(on: true, ms: out.last.ms + event.ms);
-        continue;
-      }
-      out.add(event);
-    }
-    return out;
-  }
-
-  /// Une marcas separadas por una pausa imposible (más corta que media
-  /// unidad): es un parpadeo de la cámara dentro de la misma raya, no dos
-  /// símbolos.
+  /// Une marcas separadas por una pausa imposible (menos de media unidad): es
+  /// un parpadeo de la cámara dentro de la misma raya, no dos símbolos. El
+  /// corte deja margen: aun con un 30 % de temblor, una pausa real entre
+  /// elementos mide 0,7 unidades y no se toca.
   List<_Event> _condense(List<_Event> base, int unit) {
     final out = <_Event>[];
     for (final event in base) {
@@ -200,7 +183,7 @@ class MorseDecoder {
         out.add(event);
         continue;
       }
-      if (out.isNotEmpty && out.last.on && event.ms < unit * 0.55) {
+      if (out.isNotEmpty && out.last.on && event.ms < unit * 0.5) {
         // Se descarta la pausa: la próxima marca se suma a la anterior.
         continue;
       }
@@ -227,7 +210,12 @@ class MorseDecoder {
   int? _estimateUnit(List<_Event> base) {
     final marks = <int>[];
     final gaps = <int>[];
-    for (final event in base) {
+    // Los tramos más recientes describen mejor el ritmo actual: si alguien
+    // cambia de velocidad, lo viejo no debe pesar igual.
+    final recent = base.length > _estimateWindow * 2
+        ? base.sublist(base.length - _estimateWindow * 2)
+        : base;
+    for (final event in recent) {
       if (event.on) {
         if (marks.length < _estimateWindow) marks.add(event.ms);
       } else if (marks.isNotEmpty && gaps.length < _estimateWindow) {
@@ -265,15 +253,55 @@ class MorseDecoder {
     }
     if (bestUnit == 0) return null;
 
+    // Los candidatos salen de las duraciones recibidas, así que el mejor suele
+    // quedar en un extremo (el punto más corto, la raya más corta). Se recentra
+    // con una mediana: cada tramo dividido por el múltiplo que le toca.
+    bestUnit = _refineUnit(bestUnit, marks, gaps);
+
     final chosen = _unit;
     if (chosen != null && chosen != bestUnit) {
       // Cambiar de ritmo reescribe lo ya leído: solo se hace si el nuevo
-      // explica bastante mejor el mensaje.
+      // explica bastante mejor el mensaje. La comparación se hace con la
+      // puntuación del ritmo ya recentrado, no con la del candidato anterior.
+      final refinedScore = _scoreUnit(bestUnit, marks, gaps);
       final chosenScore = _scoreUnit(chosen, marks, gaps);
-      if (bestScore > chosenScore * 0.8) return chosen;
+      if (refinedScore > chosenScore * 0.8) return chosen;
     }
     _unit = bestUnit;
     return bestUnit;
+  }
+
+  /// Recentra el ritmo: clasifica cada tramo con la unidad actual y toma la
+  /// mediana de `duración / múltiplo`. Dos pasadas alcanzan; más no cambia.
+  int _refineUnit(int unit, List<int> marks, List<int> gaps) {
+    var current = unit.toDouble();
+    for (var pass = 0; pass < 2; pass++) {
+      final ratios = <double>[];
+      for (final mark in marks) {
+        final dash = (math.log(mark / (current * 3))).abs();
+        final dot = (math.log(mark / current)).abs();
+        ratios.add(mark / (dash < dot ? 3 : 1));
+      }
+      for (final gap in gaps) {
+        var bestK = 1;
+        var bestDistance = double.infinity;
+        for (final k in const [1, 3, 7]) {
+          final distance = (math.log(gap / (current * k))).abs();
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestK = k;
+          }
+        }
+        ratios.add(gap / bestK);
+      }
+      if (ratios.isEmpty) break;
+      ratios.sort();
+      current = ratios[ratios.length ~/ 2].clamp(
+        minUnitMs.toDouble(),
+        maxUnitMs.toDouble(),
+      );
+    }
+    return current.round();
   }
 
   double _scoreUnit(int unit, List<int> marks, List<int> gaps) {

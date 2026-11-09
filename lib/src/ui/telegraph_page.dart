@@ -124,9 +124,9 @@ class _TelegraphPageState extends State<TelegraphPage>
   Future<void> _stop() async {
     _blinker?.stop();
     _blinker = null;
-    await RescueService.setTorch(false);
-    await RescueService.setTone(false);
-    await RescueService.keepAwake(false);
+    // release() apaga linterna, sirena y pitido, y suelta el reproductor de
+    // audio: si sólo se bajara el volumen quedaría sonando en silencio.
+    await RescueService.release();
     if (!mounted) return;
     setState(() {
       _playing = false;

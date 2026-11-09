@@ -284,14 +284,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.8.1.apk`** (68 MB, todas las)
+APK listo para instalar: **`dist/SinRed-0.8.2.apk`** (68 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 Descarga directa sin compilar nada:
-[**SinRed-0.8.1.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.8.1/SinRed-0.8.1.apk)
+[**SinRed-0.8.2.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.8.2/SinRed-0.8.2.apk)
 (la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `f31a8a287b573ad8f714f2d040fc083164ea7c7b5b662f56723794dd3235ee9a`.
+SHA-256: `6340cf8ba72cced4ed95b8d0e609cfe9e7f85dbd248d1734945dc039fe8794fb`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -421,7 +421,7 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.8.1
+## 9. Qué cambió en la 0.8.2
 
 - **Recibir morse**: la app lee destellos con la cámara y los pasa a texto, sin
   internet y sin saber morse. Mide cuánto dura cada encendido y cada pausa,
@@ -432,22 +432,35 @@ test/                           protocolo, malla, energía y humo de UI
   escuchar, la palabra que se escriba letra por letra, palabras de ejemplo y un
   juego de cuatro opciones con aciertos.
 - **Lectura mucho más firme** (la 0.8.0 leía mal):
-  - Un cambio de luz no se acepta por un solo fotograma: tiene que sostenerse.
-    Antes, un temblor de exposición partía una raya en dos y el mensaje salía
-    sin sentido.
-  - El brillo ya no se promedia sobre todo el cuadro. Se mide el promedio de la
-    décima parte más clara del recuadro central, así una linterna lejana pesa
-    aunque ocupe pocos píxeles.
-  - El ritmo ya no se toma de la marca más corta: se prueban varios ritmos y
-    queda el que mejor explica todas las duraciones. Una marca imprecisa ya no
-    reescribe el mensaje que se venía leyendo.
-  - Las pausas de un fotograma dentro de una raya se funden con ella, y la
-    última letra se cierra sola cuando el silencio ya es de letra.
+  - Un cambio de luz no se cree por un solo fotograma: tiene que repetirse en
+    el siguiente. Antes, un temblor de exposición partía una raya en dos y el
+    mensaje salía sin sentido. Ahora tampoco se pierde un punto rápido: la
+    espera se cuenta en fotogramas, no en milisegundos.
+  - El brillo se mide leyendo **todos** los píxeles del recuadro central y
+    promediando el 1 % más claro. Una linterna lejana son pocos píxeles: con un
+    promedio del cuadro se diluía, y salteando píxeles la rejilla podía no
+    pisarla nunca.
+  - El ritmo no se toma de la marca más corta: se prueban ritmos candidatos,
+    se elige el que mejor explica todas las duraciones y se recentra con la
+    mediana. Una marca imprecisa ya no reescribe el mensaje que se venía
+    leyendo.
+  - Una pausa real muy corta (66 ms) ya no se confunde con un parpadeo: solo se
+    funden las pausas menores a media unidad.
+  - La última letra se cierra sola cuando el silencio ya es de letra.
+- **Pitido sin retardo**: el reproductor de audio se arma una vez y se abre y
+  cierra con el volumen, en lugar de crear y liberar uno en cada punto. Antes
+  el pitido llegaba tarde respecto de la luz y el teléfono se trababa al
+  mandar.
+- **Linterna reafirmada**: si otra app se quedó con la cámara y la suelta a
+  mitad del mensaje, el siguiente punto vuelve a encenderla.
 - Se quitó la llamada de atención (VVV): sumaba un paso más a cada mensaje y no
   aportaba a la lectura.
 - Límite conocido: un mensaje de una sola raya (`T`) puede leerse como punto
   (`E`), porque sin más marcas no hay con qué distinguir el ritmo. Con dos o
   más rayas, las pausas ya alcanzan para leerlo bien.
+- Precisión medida en simulación: con hasta un 30 % de temblor en las
+  duraciones acierta el 100 % de los mensajes de prueba; con un 2 % de
+  fotogramas perdidos, el 89-96 %.
 
 ## 10. Qué cambió en la 0.7.1
 

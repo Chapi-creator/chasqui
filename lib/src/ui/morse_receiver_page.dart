@@ -203,15 +203,17 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
     }
   }
 
-  /// Brillo de "lo más claro" del centro del cuadro, entre 0 y 1.
+  /// Brillo de "lo más claro" del recuadro central, entre 0 y 1.
   ///
   /// Promediar todo el fotograma era el error de fondo: a unos metros la
   /// linterna ocupa una parte chica y su encendido se diluye en el fondo, así
-  /// que la cámara "no veía" nada. Después se probó el promedio del centro,
-  /// pero una luz lejana sigue pesando poco. Lo que se mide ahora es el brillo
-  /// medio de la décima parte más clara del recuadro: si la linterna está
-  /// encendida, esos son sus píxeles; si está apagada, el fondo. Se calcula con
-  /// un histograma de 256 valores, así no hay que ordenar píxeles.
+  /// que la cámara "no veía" nada. Tampoco alcanza con mirar solo algunos
+  /// píxeles del recuadro: una luz lejana son unos pocos y la rejilla podía
+  /// saltearlos, con lo cual el brillo saltaba entre "luz" y "fondo".
+  ///
+  /// Por eso se leen **todos** los píxeles del recuadro (unos 20 000 a la
+  /// resolución baja) y se promedia el 1 % más claro: si la linterna está
+  /// encendida, esos son sus píxeles; si está apagada, el fondo.
   double _meanLuma(CameraImage image) {
     if (image.planes.isEmpty) return 0;
     final plane = image.planes.first;
@@ -227,14 +229,12 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
     final x1 = (width * 0.75).round();
     final y0 = (height * 0.25).round();
     final y1 = (height * 0.75).round();
-    final stepX = math.max(1, (x1 - x0) ~/ 60);
-    final stepY = math.max(1, (y1 - y0) ~/ 60);
 
     final histogram = List<int>.filled(256, 0);
     var count = 0;
-    for (var y = y0; y < y1; y += stepY) {
+    for (var y = y0; y < y1; y++) {
       final row = y * stride;
-      for (var x = x0; x < x1; x += stepX) {
+      for (var x = x0; x < x1; x++) {
         final index = row + x;
         if (index >= bytes.length) break;
         histogram[bytes[index]]++;
@@ -243,8 +243,9 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
     }
     if (count == 0) return 0;
 
-    // Los más claros: el 10 % de los píxeles del recuadro.
-    final wanted = math.max(1, (count * 0.1).round());
+    // El 1 % más claro, con un mínimo de 16 píxeles para que el ruido de un
+    // recuadro casi negro no mande.
+    final wanted = math.max(16, (count * 0.01).round());
     var seen = 0;
     var sum = 0;
     for (var level = 255; level >= 0 && seen < wanted; level--) {
@@ -686,9 +687,9 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'La cámara necesita ver el encendido y el apagado. Si la luz '
-              'llena todo el cuadro, alejate un poco; si es de noche y el '
-              'fondo es negro, apuntá a que la luz ocupe la mitad. Un mensaje '
+              'La app mide la parte más clara del recuadro: la luz tiene que '
+              'entrar ahí, aunque sea chica. Si el fondo también es muy claro, '
+              'tapalo o cambiate de lugar. Un mensaje '
               'de una sola raya (T) puede leerse como punto (E): no hay otra '
               'marca con la cual comparar el ritmo.',
               style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
