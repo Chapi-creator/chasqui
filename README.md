@@ -310,13 +310,19 @@ flutter test
 flutter build apk --release
 ```
 
+**Descarga directa**: la carpeta [`apk/`](apk/Chasqui.apk) del repo tiene el APK
+listo para bajar tocando **Download**, sin compilar nada ni buscar más abajo.
+Ese archivo (`apk/Chasqui.apk`) se reemplaza en cada versión y siempre es la
+última; las viejas quedan en [Releases](https://github.com/Chapi-creator/chasqui/releases).
+
 APK listo para instalar: **`dist/Chasqui-1.1.0.apk`** (71,8 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
-La carpeta `dist/` no va en git: el APK se publica como adjunto del release.
-Los [releases](https://github.com/Chapi-creator/chasqui/releases) tienen las
-versiones anteriores.
+La carpeta `dist/` no va en git; el APK que sí está en el repo es
+`apk/Chasqui.apk`, y cada versión se publica además como adjunto del
+[release](https://github.com/Chapi-creator/chasqui/releases), donde quedan las
+anteriores.
 SHA-256: `e1bbcf5781ae0030a96f2e7d97e768de9e7e1cb2f655730f1307813b09abe1e3`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
