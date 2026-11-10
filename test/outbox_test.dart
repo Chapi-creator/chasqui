@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/core/bytes.dart';
-import 'package:sinred/src/core/frame.dart';
-import 'package:sinred/src/mesh/outbox.dart';
+import 'package:chasqui/src/core/bytes.dart';
+import 'package:chasqui/src/core/frame.dart';
+import 'package:chasqui/src/mesh/outbox.dart';
 
 MeshFrame messageFrame({int timestamp = 0}) => MeshFrame(
   type: FrameType.message,

@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.sinred.sinred"
+    namespace = "com.chasqui.chasqui"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.sinred.sinred"
+        applicationId = "com.chasqui.chasqui"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // 24 es el mínimo que exige bluetooth_low_energy.

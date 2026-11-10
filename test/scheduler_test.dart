@@ -1,7 +1,7 @@
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/power/power_policy.dart';
-import 'package:sinred/src/power/radio_scheduler.dart';
+import 'package:chasqui/src/power/power_policy.dart';
+import 'package:chasqui/src/power/radio_scheduler.dart';
 
 /// Reloj controlado: la ventana se alinea con la hora del teléfono, así que en
 /// los tests se fija un origen que cae justo en una frontera de todos los

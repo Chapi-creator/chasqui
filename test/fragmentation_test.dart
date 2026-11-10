@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/transport/ble/fragmentation.dart';
+import 'package:chasqui/src/transport/ble/fragmentation.dart';
 
 Uint8List frame(int length) =>
     Uint8List.fromList(List<int>.generate(length, (i) => (i * 7) % 256));

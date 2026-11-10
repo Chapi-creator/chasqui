@@ -14,16 +14,16 @@ import 'ui/chat_page.dart';
 import 'ui/home_page.dart';
 import 'ui/theme.dart';
 
-class SinRedApp extends StatefulWidget {
-  const SinRedApp({super.key, required this.node});
+class ChasquiApp extends StatefulWidget {
+  const ChasquiApp({super.key, required this.node});
 
   final MeshNode node;
 
   @override
-  State<SinRedApp> createState() => _SinRedAppState();
+  State<ChasquiApp> createState() => _ChasquiAppState();
 }
 
-class _SinRedAppState extends State<SinRedApp> with WidgetsBindingObserver {
+class _ChasquiAppState extends State<ChasquiApp> with WidgetsBindingObserver {
   StreamSubscription<PeerRecord>? _reachableSubscription;
   StreamSubscription<GeoPoint>? _locationSubscription;
   StreamSubscription<ChannelAlert>? _alertSubscription;
@@ -127,11 +127,11 @@ class _SinRedAppState extends State<SinRedApp> with WidgetsBindingObserver {
     return ChangeNotifierProvider<MeshNode>.value(
       value: widget.node,
       child: MaterialApp(
-        title: 'SinRed',
+        title: 'Chasqui',
         navigatorKey: _navigatorKey,
         debugShowCheckedModeBanner: false,
-        theme: SinRedTheme.light(),
-        darkTheme: SinRedTheme.dark(),
+        theme: ChasquiTheme.light(),
+        darkTheme: ChasquiTheme.dark(),
         themeMode: ThemeMode.system,
         home: const HomePage(),
       ),

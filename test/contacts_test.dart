@@ -2,14 +2,14 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/core/bytes.dart';
-import 'package:sinred/src/core/contact_code.dart';
-import 'package:sinred/src/core/frame.dart';
-import 'package:sinred/src/core/identity.dart';
-import 'package:sinred/src/core/models.dart';
-import 'package:sinred/src/data/state_store.dart';
-import 'package:sinred/src/mesh/mesh_node.dart';
-import 'package:sinred/src/power/power_policy.dart';
+import 'package:chasqui/src/core/bytes.dart';
+import 'package:chasqui/src/core/contact_code.dart';
+import 'package:chasqui/src/core/frame.dart';
+import 'package:chasqui/src/core/identity.dart';
+import 'package:chasqui/src/core/models.dart';
+import 'package:chasqui/src/data/state_store.dart';
+import 'package:chasqui/src/mesh/mesh_node.dart';
+import 'package:chasqui/src/power/power_policy.dart';
 
 import 'support/fake_transport.dart';
 
@@ -45,7 +45,7 @@ void main() {
       expect(ContactInvite.decode(messy)?.nodeId, other.id);
     });
 
-    test('rechaza texto que no es un código de SinRed', () {
+    test('rechaza texto que no es un código de Chasqui', () {
       expect(ContactInvite.decode('https://ejemplo.com'), isNull);
       expect(ContactInvite.decode('SINRED1:1234:abcd:zzz'), isNull);
       expect(ContactInvite.decode(''), isNull);
@@ -80,7 +80,7 @@ void main() {
     late MeshNode node;
 
     setUp(() async {
-      directory = await Directory.systemTemp.createTemp('sinred_contacts');
+      directory = await Directory.systemTemp.createTemp('chasqui_contacts');
       identity = await NodeIdentity.generate();
       transport = FakeTransport();
       store = StateStore(directory: directory);
@@ -240,7 +240,7 @@ void main() {
     late MeshNode node;
 
     setUp(() async {
-      directory = await Directory.systemTemp.createTemp('sinred_short_code');
+      directory = await Directory.systemTemp.createTemp('chasqui_short_code');
       identity = await NodeIdentity.generate();
       transport = FakeTransport();
       store = StateStore(directory: directory);

@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 /// conoce: el magnetómetro gasta batería y no tiene sentido tenerlo siempre
 /// escuchando.
 class CompassService {
-  static const MethodChannel _channel = MethodChannel('sinred/sensors');
+  static const MethodChannel _channel = MethodChannel('chasqui/sensors');
   static final StreamController<double> _headings =
       StreamController<double>.broadcast();
 

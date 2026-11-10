@@ -34,7 +34,7 @@ String formatSightingAge(Duration age) {
 /// mezclarlo con identidad, contactos y mensajes (si ese archivo se corrompe,
 /// se pierde todo lo demás).
 class SightingLog {
-  SightingLog({Directory? directory, this.fileName = 'sinred_rescate.json'})
+  SightingLog({Directory? directory, this.fileName = 'chasqui_rescate.json'})
     : _directory = directory;
 
   final Directory? _directory;

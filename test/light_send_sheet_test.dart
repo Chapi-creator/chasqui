@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/ui/light_send_sheet.dart';
+import 'package:chasqui/src/ui/light_send_sheet.dart';
 
 Future<void> pumpSheet(WidgetTester tester, {String initialText = ''}) async {
   tester.view.physicalSize = const Size(1200, 2600);

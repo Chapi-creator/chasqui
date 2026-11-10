@@ -146,7 +146,7 @@ enum AddContactResult {
   /// El código es el de este mismo teléfono.
   ownCode,
 
-  /// El texto no es un código de SinRed o la clave no cuadra con el id.
+  /// El texto no es un código de Chasqui o la clave no cuadra con el id.
   invalid,
 
   /// (Código corto) Esa persona no está en la malla en este momento.

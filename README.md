@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" width="150" alt="Logo de SinRed: cuatro nodos unidos en rombo">
+  <img src="docs/logo.png" width="150" alt="Emblema de Chasqui: punto, raya y punto, la R de la telegrafía">
 </p>
 
-# SinRed
+# Chasqui
 
 Chat tipo WhatsApp que funciona **sin internet, sin operador y sin servidores**.
 Los teléfonos hablan entre sí por Bluetooth LE y se reenvían los mensajes unos a
@@ -185,7 +185,9 @@ sale de la cola y pasa a "entregado".
 
 - Par X25519 estático por instalación, guardado en el teléfono.
 - `nodeId` = primeros 8 bytes de SHA-256 de la clave pública (16 hex).
-- Clave compartida por ECDH + HKDF-SHA256 (info `sinred/v1/mesh-message`).
+- Clave compartida por ECDH + HKDF-SHA256 (info `sinred/v1/mesh-message`;
+  la cadena conserva el nombre viejo para no romper el cifrado con las
+  versiones anteriores).
 - AES-256-GCM con sobre de 28 bytes (12 nonce + 16 tag).
 - TOFU: si un id aparece con otra clave pública, el anuncio se descarta.
 
@@ -213,7 +215,7 @@ Cada teléfono muestra su código y puede leer el de otro:
 - El QR lleva `SINRED1:<id>:<clave pública>:<nombre>`.
 - Al leerlo se comprueba que la clave pública derive el id (SHA-256); un QR
   manipulado para suplantar a alguien se rechaza y no se agrega.
-- El contacto se guarda en `sinred_state.json` en el mismo instante en que se
+- El contacto se guarda en `chasqui_state.json` en el mismo instante en que se
   agrega: cerrar la app o reiniciar el teléfono no lo borra.
 - La cámara solo se enciende en la pestaña **Escanear**; si no hay cámara o no
   se quiere dar el permiso, el mismo código se puede pegar como texto.
@@ -294,14 +296,14 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/SinRed-0.9.0.apk`** (71 MB, todas las)
+APK listo para instalar: **`dist/Chasqui-1.0.0.apk`** (71 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
-Descarga directa sin compilar nada:
-[**SinRed-0.9.0.apk**](https://github.com/Chapi-creator/sinred/releases/download/v0.9.0/SinRed-0.9.0.apk)
-(la carpeta `dist/` no va en git: el APK se publica como adjunto del release).
-SHA-256: `97023a13b81f65922a9bb901dbccd986890ede4b7949bb5d2fbc998bcf90bf66`.
+La carpeta `dist/` no va en git: el APK se publica como adjunto del release.
+Los [releases](https://github.com/Chapi-creator/chasqui/releases) tienen las
+versiones anteriores.
+SHA-256: `f78e79156aabf49e03740c20d511022f084da5f5be77bb551d7148bee8fa0dfb`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -355,8 +357,8 @@ lib/
     data/state_store.dart       persistencia JSON
     platform/                   MethodChannel del servicio nativo
     ui/                         chats, contactos, escáner QR, ajustes, widgets
-android/app/src/main/kotlin/com/sinred/sinred/
-  MainActivity.kt               canal sinred/power
+android/app/src/main/kotlin/com/chasqui/chasqui/
+  MainActivity.kt               canal chasqui/power
   MeshForegroundService.kt      servicio en primer plano
 test/                           protocolo, malla, energía y humo de UI
 ```
@@ -415,7 +417,7 @@ test/                           protocolo, malla, energía y humo de UI
 - La brújula depende del magnetómetro y de que el teléfono esté más o menos
   plano y lejos de metales; si no hay sensor, la app muestra la sigla y sigue.
 - El APK declara el permiso `INTERNET`: lo arrastra la librería del escáner de
-  QR (ML Kit) en su manifiesto. El código de SinRed no abre ningún socket ni
+  QR (ML Kit) en su manifiesto. El código de Chasqui no abre ningún socket ni
   llama a ninguna API; se puede comprobar buscando `HttpClient` o `Socket` en
   `lib/`, que no aparecen.
 - Compartir el APK depende de que el otro teléfono acepte instalar apps de
@@ -431,7 +433,30 @@ test/                           protocolo, malla, energía y humo de UI
 6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
 7. Firma de los avisos del canal con una clave de coordinador de confianza.
 
-## 9. Qué cambió en la 0.9.0
+## 9. Qué cambió en la 1.0.0
+
+La app pasó a llamarse **Chasqui**: el mensajero que corría de posta en posta
+llevando el mensaje, que es exactamente lo que hace esto saltando de teléfono en
+teléfono. El emblema es punto, raya y punto —la R de la telegrafía—, la misma
+marca que se manda con la linterna.
+
+- **El nombre viejo se va de todos lados**: el lanzador, el título de la ventana,
+  la notificación del servicio, la pantalla de Ajustes, el README y el repo de
+  GitHub.
+- **El logo viejo (la malla de rombo) ya no aparece en ningún lado**: estaba en
+  el arranque, en Ajustes y en este README aunque el icono del lanzador ya era
+  el nuevo desde la 0.7.1. Ahora el arranque, Ajustes, el README, el icono
+  clásico, el redondo, el adaptativo y el monocromo salen todos de la misma
+  definición en `tool/make_logo.py`.
+- **Identificador nuevo**: `com.chasqui.chasqui`. Android lo trata como otra
+  app, así que **no se actualiza encima de la SinRed instalada**: hay que
+  desinstalar la vieja (o convivir con las dos, que también funciona).
+- **Lo que NO cambió, a propósito**: las cadenas `sinred/v1/mesh-message` y
+  `sinred/v1/canal-todos` del cifrado y del canal abierto, y el UUID del
+  servicio BLE. Son protocolo, no marca: si cambian, un teléfono con la versión
+  anterior deja de entender al nuevo y la malla se parte en dos.
+
+## 10. Qué cambió en la 0.9.0
 
 - **Calibrar el receptor**: un botón en la pantalla del receptor mide dos
   segundos el fondo y dos la luz, y guarda los umbrales de ese lugar. Es lo que
@@ -506,7 +531,7 @@ test/                           protocolo, malla, energía y humo de UI
   duraciones acierta el 100 % de los mensajes de prueba; con un 2 % de
   fotogramas perdidos, el 89-96 %.
 
-## 10. Qué cambió en la 0.7.1
+## 11. Qué cambió en la 0.7.1
 
 - **Icono nuevo de la app**: el lanzador, el icono redondo y el temático de
   Android 13+ pasan a ser el emblema de Telegrafía —punto, raya y punto sobre
@@ -516,10 +541,10 @@ test/                           protocolo, malla, energía y humo de UI
   56 códigos de la tabla (26 letras, 10 números, 19 signos y la ñ) contra el
   ITU-R M.1677-1, uno por uno. Si alguien cambia un punto por una raya, la
   suite falla antes de publicar.
-- El logo de la malla sigue en el arranque y en Ajustes: identifica a SinRed,
-  no al modo.
+- En esa versión el logo de la malla siguió en el arranque y en Ajustes; la
+  1.0.0 lo reemplazó por el emblema.
 
-## 11. Qué cambió en la 0.7.0
+## 12. Qué cambió en la 0.7.0
 
 **Telegrafía**: el morse deja de ser solo el SOS y pasa a servir para cualquier
 mensaje.
@@ -542,7 +567,7 @@ mensaje.
   código con el elemento encendido subrayado. A brillo máximo y sin apagarse,
   igual que el SOS, y se corta sola si la app pasa a segundo plano.
 - **Emblema propio** (`assets/brand/telegrafia.png`): punto, raya y punto con
-  halo, en la paleta del logo de SinRed.
+  halo, en la paleta del logo de Chasqui.
 - **Sin tocar la radio y sin dependencias nuevas**: el pitido sale del mismo
   canal nativo (`AudioTrack`) que ya usaba la sirena.
 
@@ -553,7 +578,7 @@ repetición del mensaje con el mismo motor del SOS.
 Lo que sigue sin poder probarse sin teléfono: si el pitido se oye, si la
 linterna alumbra y si el brillo alcanza al sol.
 
-## 12. Qué cambió en la 0.6.0
+## 13. Qué cambió en la 0.6.0
 
 El teléfono como herramienta de rescate, sin radio de por medio:
 
@@ -571,12 +596,12 @@ El teléfono como herramienta de rescate, sin radio de por medio:
   indicar por dónde vas. Sin barras del sistema, el símbolo ocupa todo lo que
   puede.
 - **Contador de avistamiento**: cuánto hace que no ves un avión, un helicóptero
-  o gente. Se guarda en su propio archivo (`sinred_rescate.json`), así el número
+  o gente. Se guarda en su propio archivo (`chasqui_rescate.json`), así el número
   sigue siendo cierto aunque cierres la app para ahorrar batería; a partir de
   6 h se pinta en rojo.
 - **Nada de esto toca la radio**: ni escaneo, ni enlaces, ni servicio en primer
   plano. Funciona con la malla en reposo o sin Bluetooth, y el panel lo dice.
-- Linterna y sirena van por un canal nativo propio (`sinred/rescue`,
+- Linterna y sirena van por un canal nativo propio (`chasqui/rescue`,
   `RescueSignals.kt`) con `CameraManager` y `AudioTrack`: **ninguna dependencia
   nueva** en el APK. Si otra app tiene la cámara tomada, el SOS sigue con la
   pantalla y lo avisa en vez de fallar en silencio.
@@ -587,7 +612,7 @@ El teléfono como herramienta de rescate, sin radio de por medio:
 Lo que no se puede probar sin un teléfono es la parte física: si la linterna
 alumbra, si la sirena suena fuerte y si el brillo forzado alcanza al sol.
 
-## 13. Qué cambió en la 0.5.5
+## 14. Qué cambió en la 0.5.5
 
 Identidad visual, sin tocar el funcionamiento de la malla:
 
@@ -602,7 +627,7 @@ Identidad visual, sin tocar el funcionamiento de la malla:
   blanco, también en Android 12+ (`windowSplashScreenBackground`).
 - El logo aparece en Ajustes, sobre la versión, y en este README.
 
-## 14. Qué cambió en la 0.5.4
+## 15. Qué cambió en la 0.5.4
 
 Todo para que la app gaste lo mínimo cuando la energía es el problema:
 
@@ -630,7 +655,7 @@ Todo para que la app gaste lo mínimo cuando la energía es el problema:
 Lo que no cambia: la app no puede medir su consumo real sin un teléfono, así
 que las horas de autonomía sigues siendo estimaciones de diseño.
 
-## 15. Qué cambió en la 0.5.3
+## 16. Qué cambió en la 0.5.3
 
 **Tablero de emergencia**, la información que se necesita después de un sismo o
 una inundación, ordenada para que sirva en vez de estorbar:
@@ -655,7 +680,7 @@ una inundación, ordenada para que sirva en vez de estorbar:
   de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
   y se publica de verdad). Total: **119 pruebas**.
 
-## 16. Qué cambió en la 0.5.2
+## 17. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -677,7 +702,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 17. Qué cambió en la 0.5.1
+## 18. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -710,7 +735,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 18. Licencia
+## 19. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),

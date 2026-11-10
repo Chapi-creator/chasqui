@@ -9,7 +9,7 @@ import 'package:flutter/services.dart';
 /// app de archivos lo entregan teléfono a teléfono. No hace falta Play Store
 /// ni datos móviles, que es justo lo que falla en un apagón.
 class AppShare {
-  static const MethodChannel _channel = MethodChannel('sinred/share');
+  static const MethodChannel _channel = MethodChannel('chasqui/share');
 
   /// Abre el selector del sistema con el APK adjunto.
   static Future<bool> shareApk() async {

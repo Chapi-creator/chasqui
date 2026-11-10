@@ -31,7 +31,7 @@ class _HomePageState extends State<HomePage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('SinRed', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text('Chasqui', style: TextStyle(fontWeight: FontWeight.w700)),
             _StatusLine(node: node),
           ],
         ),

@@ -183,6 +183,9 @@ class ChannelCrypto {
   static const int nonceLength = 12;
   static const int macLength = 16;
 
+  /// La cadena lleva el nombre viejo a propósito: es parte del protocolo, no
+  /// de la marca. Si cambiara, los teléfonos con una versión anterior dejarían
+  /// de abrir los mismos canales y la malla se partiría en dos.
   static Future<SecretKey> _key() {
     return _cachedKey ??= () async {
       final digest = await _sha256.hash(utf8.encode('sinred/v1/canal-todos'));

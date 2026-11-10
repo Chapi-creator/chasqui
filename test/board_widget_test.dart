@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:sinred/src/core/board.dart';
-import 'package:sinred/src/core/identity.dart';
-import 'package:sinred/src/data/state_store.dart';
-import 'package:sinred/src/mesh/mesh_node.dart';
-import 'package:sinred/src/ui/board_page.dart';
+import 'package:chasqui/src/core/board.dart';
+import 'package:chasqui/src/core/identity.dart';
+import 'package:chasqui/src/data/state_store.dart';
+import 'package:chasqui/src/mesh/mesh_node.dart';
+import 'package:chasqui/src/ui/board_page.dart';
 
 import 'support/fake_transport.dart';
 
@@ -21,7 +21,7 @@ void main() {
       late FakeTransport transport;
       late Directory directory;
       await tester.runAsync(() async {
-        directory = await Directory.systemTemp.createTemp('sinred_board_ui');
+        directory = await Directory.systemTemp.createTemp('chasqui_board_ui');
         transport = FakeTransport();
         node = MeshNode(
           identity: await NodeIdentity.generate(),

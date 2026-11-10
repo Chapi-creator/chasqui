@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/rescue/morse.dart';
-import 'package:sinred/src/rescue/sighting.dart';
+import 'package:chasqui/src/rescue/morse.dart';
+import 'package:chasqui/src/rescue/sighting.dart';
 
 void main() {
   group('patrón morse del SOS', () {
@@ -266,7 +266,7 @@ void main() {
 
     test('la marca sobrevive al reinicio de la app', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'sinred_rescate_test',
+        'chasqui_rescate_test',
       );
       addTearDown(() async {
         if (await directory.exists()) await directory.delete(recursive: true);
@@ -281,12 +281,12 @@ void main() {
 
     test('un archivo corrupto se ignora en vez de romper el panel', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'sinred_rescate_corrupto',
+        'chasqui_rescate_corrupto',
       );
       addTearDown(() async {
         if (await directory.exists()) await directory.delete(recursive: true);
       });
-      await File('${directory.path}/sinred_rescate.json').writeAsString('{');
+      await File('${directory.path}/chasqui_rescate.json').writeAsString('{');
       final log = SightingLog(directory: directory);
       expect(await log.load(), isNull);
     });

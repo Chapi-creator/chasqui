@@ -106,7 +106,7 @@ class NodesPage extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     'La malla se descubre por anuncios BLE. Con dos teléfonos '
-                    'cerca, abre SinRed en ambos: se verán en segundos.',
+                    'cerca, abre Chasqui en ambos: se verán en segundos.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,

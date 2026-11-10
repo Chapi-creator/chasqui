@@ -1,4 +1,4 @@
-package com.sinred.sinred
+package com.chasqui.chasqui
 
 import android.Manifest
 import android.app.Notification
@@ -28,20 +28,20 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         /** Extra con el id del nodo que debe abrirse al tocar la notificación. */
-        const val EXTRA_PEER_ID = "sinred.peerId"
+        const val EXTRA_PEER_ID = "chasqui.peerId"
 
         /** Id de conversación del canal abierto "Todos". */
         const val CHANNEL_CONVERSATION_ID = "todos"
     }
 
-    private val channelName = "sinred/power"
-    private val locationChannelName = "sinred/location"
-    private val sensorChannelName = "sinred/sensors"
-    private val shareChannelName = "sinred/share"
-    private val rescueChannelName = "sinred/rescue"
+    private val channelName = "chasqui/power"
+    private val locationChannelName = "chasqui/location"
+    private val sensorChannelName = "chasqui/sensors"
+    private val shareChannelName = "chasqui/share"
+    private val rescueChannelName = "chasqui/rescue"
     private val permissionRequestCode = 71
     private val locationPermissionRequestCode = 72
-    private val contactChannelId = "sinred_contacts"
+    private val contactChannelId = "chasqui_contacts"
 
     private var powerChannel: MethodChannel? = null
     private var locationChannel: MethodChannel? = null
@@ -605,7 +605,7 @@ class MainActivity : FlutterActivity() {
                 FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)
             } catch (error: IllegalArgumentException) {
                 // Si el proveedor no cubre la ruta del APK, se copia a caché.
-                val cached = File(cacheDir, "SinRed.apk")
+                val cached = File(cacheDir, "Chasqui.apk")
                 if (!cached.exists() || cached.length() != apk.length()) {
                     apk.copyTo(cached, overwrite = true)
                 }
@@ -614,10 +614,10 @@ class MainActivity : FlutterActivity() {
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "application/vnd.android.package-archive"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "SinRed: chat sin internet")
+                putExtra(Intent.EXTRA_SUBJECT, "Chasqui: chat sin internet")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            startActivity(Intent.createChooser(send, "Compartir SinRed"))
+            startActivity(Intent.createChooser(send, "Compartir Chasqui"))
             true
         } catch (error: Exception) {
             false
@@ -635,7 +635,7 @@ class MainActivity : FlutterActivity() {
             return
         }
         val manager = getSystemService(NotificationManager::class.java) ?: return
-        val channelId = if (sos) "sinred_sos" else "sinred_channel"
+        val channelId = if (sos) "chasqui_sos" else "chasqui_channel"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationChannel = NotificationChannel(
                 channelId,

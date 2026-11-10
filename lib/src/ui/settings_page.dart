@@ -348,7 +348,7 @@ class SettingsPage extends StatelessWidget {
         const SizedBox(height: 18),
         Center(
           child: Image.asset(
-            'assets/brand/sinred_logo.png',
+            'assets/brand/chasqui_logo.png',
             width: 76,
             height: 76,
             // El logo es decorativo: sin la imagen la app sigue siendo usable.
@@ -358,7 +358,7 @@ class SettingsPage extends StatelessWidget {
         const SizedBox(height: 6),
         Center(
           child: Text(
-            'SinRed $appVersion · malla BLE sin internet',
+            'Chasqui $appVersion · malla BLE sin internet',
             style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
           ),
         ),

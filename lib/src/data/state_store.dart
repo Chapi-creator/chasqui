@@ -118,7 +118,7 @@ class AppSnapshot {
 }
 
 class StateStore {
-  StateStore({this.fileName = 'sinred_state.json', Directory? directory})
+  StateStore({this.fileName = 'chasqui_state.json', Directory? directory})
     : _directory = directory;
 
   final String fileName;

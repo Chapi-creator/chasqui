@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/rescue/light_calibration.dart';
-import 'package:sinred/src/rescue/light_sampler.dart';
-import 'package:sinred/src/rescue/morse.dart';
-import 'package:sinred/src/rescue/morse_decoder.dart';
+import 'package:chasqui/src/rescue/light_calibration.dart';
+import 'package:chasqui/src/rescue/light_sampler.dart';
+import 'package:chasqui/src/rescue/morse.dart';
+import 'package:chasqui/src/rescue/morse_decoder.dart';
 
 /// Mete un mensaje ya codificado en el decodificador, como si la cámara lo
 /// hubiera visto: cada tramo con su duración exacta.

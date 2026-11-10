@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/core/geo.dart';
-import 'package:sinred/src/core/models.dart';
+import 'package:chasqui/src/core/geo.dart';
+import 'package:chasqui/src/core/models.dart';
 
 GeoPoint point(double lat, double lon, {double accuracy = 5}) => GeoPoint(
       lat: lat,

@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/core/bytes.dart';
-import 'package:sinred/src/core/crypto.dart';
-import 'package:sinred/src/core/frame.dart';
-import 'package:sinred/src/core/identity.dart';
-import 'package:sinred/src/mesh/dedup_cache.dart';
+import 'package:chasqui/src/core/bytes.dart';
+import 'package:chasqui/src/core/crypto.dart';
+import 'package:chasqui/src/core/frame.dart';
+import 'package:chasqui/src/core/identity.dart';
+import 'package:chasqui/src/mesh/dedup_cache.dart';
 
 void main() {
   group('tramas', () {

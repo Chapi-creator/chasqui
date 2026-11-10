@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/core/bytes.dart';
+import 'package:chasqui/src/core/bytes.dart';
 
 void main() {
   test('no parte emojis al recortar', () {

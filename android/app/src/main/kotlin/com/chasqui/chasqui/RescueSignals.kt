@@ -1,4 +1,4 @@
-package com.sinred.sinred
+package com.chasqui.chasqui
 
 import android.content.Context
 import android.hardware.camera2.CameraAccessException

@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/data/state_store.dart';
-import 'package:sinred/src/power/power_policy.dart';
-import 'package:sinred/src/rescue/morse_log.dart';
+import 'package:chasqui/src/data/state_store.dart';
+import 'package:chasqui/src/power/power_policy.dart';
+import 'package:chasqui/src/rescue/morse_log.dart';
 
 void main() {
   group('historial de morse', () {

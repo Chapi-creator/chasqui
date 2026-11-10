@@ -42,6 +42,8 @@ class MeshCrypto {
     return _hkdf.deriveKey(
       secretKey: shared,
       nonce: salt.bytes,
+      // El nombre viejo es parte del protocolo: cambiarlo rompería el cifrado
+      // con los teléfonos que tengan instalada una versión anterior.
       info: utf8.encode('sinred/v1/mesh-message'),
     );
   }

@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 /// Todo pasa en el teléfono: ni radio BLE, ni datos, ni servidores. La malla
 /// sigue escuchando igual mientras el panel está abierto, y esto no la toca.
 class RescueService {
-  static const MethodChannel _channel = MethodChannel('sinred/rescue');
+  static const MethodChannel _channel = MethodChannel('chasqui/rescue');
 
   /// ¿Este teléfono tiene linterna? Se pregunta al abrir el panel.
   static Future<bool> hasTorch() async {

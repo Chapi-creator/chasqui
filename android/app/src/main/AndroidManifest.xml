@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <application
-        android:label="SinRed"
+        android:label="Chasqui"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round">
@@ -74,7 +74,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- La cámara de Flutter pide micrófono y almacenamiento por su cuenta.
-         SinRed no graba audio ni escribe archivos: se quitan del APK para que
+         Chasqui no graba audio ni escribe archivos: se quitan del APK para que
          no aparezcan en la pantalla de permisos. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />

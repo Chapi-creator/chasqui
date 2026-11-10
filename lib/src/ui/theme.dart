@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class SinRedTheme {
+class ChasquiTheme {
   static const Color seed = Color(0xFF0E9F6E);
   static const Color chatDark = Color(0xFF0B141A);
   static const Color chatLight = Color(0xFFF3F5F2);

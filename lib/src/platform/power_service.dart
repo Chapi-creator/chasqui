@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 /// app está en segundo plano. Sin él, el sistema puede congelar el escaneo BLE
 /// y los mensajes dejarían de llegar.
 class PowerService {
-  static const MethodChannel _channel = MethodChannel('sinred/power');
+  static const MethodChannel _channel = MethodChannel('chasqui/power');
 
   /// Pide permisos de Bluetooth y notificaciones (Android 12+/13+).
   ///

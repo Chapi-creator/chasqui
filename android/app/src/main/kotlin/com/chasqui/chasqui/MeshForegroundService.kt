@@ -1,4 +1,4 @@
-package com.sinred.sinred
+package com.chasqui.chasqui
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -24,10 +24,10 @@ import android.os.IBinder
 class MeshForegroundService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "sinred_mesh"
+        const val CHANNEL_ID = "chasqui_mesh"
         const val NOTIFICATION_ID = 4711
         const val EXTRA_TEXT = "text"
-        const val ACTION_UPDATE = "com.sinred.sinred.ACTION_UPDATE"
+        const val ACTION_UPDATE = "com.chasqui.chasqui.ACTION_UPDATE"
     }
 
     override fun onCreate() {
@@ -70,7 +70,7 @@ class MeshForegroundService : Service() {
             Notification.Builder(this)
         }
         return builder
-            .setContentTitle("SinRed")
+            .setContentTitle("Chasqui")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setOngoing(true)
@@ -96,7 +96,7 @@ class MeshForegroundService : Service() {
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Malla SinRed",
+            "Malla Chasqui",
             NotificationManager.IMPORTANCE_LOW
         ).apply {
             description = "Mantiene la malla activa con la pantalla apagada"

@@ -1,11 +1,11 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/core/channel.dart';
-import 'package:sinred/src/core/frame.dart';
-import 'package:sinred/src/core/identity.dart';
-import 'package:sinred/src/core/models.dart';
-import 'package:sinred/src/mesh/router.dart';
+import 'package:chasqui/src/core/channel.dart';
+import 'package:chasqui/src/core/frame.dart';
+import 'package:chasqui/src/core/identity.dart';
+import 'package:chasqui/src/core/models.dart';
+import 'package:chasqui/src/mesh/router.dart';
 
 /// Radio de mentira: entrega la trama a todos los routers menos al emisor.
 class TestBus {

@@ -2,16 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/core/frame.dart';
-import 'package:sinred/src/core/geo.dart';
-import 'package:sinred/src/core/identity.dart';
-import 'package:sinred/src/core/models.dart';
-import 'package:sinred/src/data/state_store.dart';
-import 'package:sinred/src/mesh/mesh_node.dart';
-import 'package:sinred/src/mesh/router.dart';
-import 'package:sinred/src/power/power_policy.dart';
-import 'package:sinred/src/rescue/light_calibration.dart';
-import 'package:sinred/src/rescue/morse_log.dart';
+import 'package:chasqui/src/core/frame.dart';
+import 'package:chasqui/src/core/geo.dart';
+import 'package:chasqui/src/core/identity.dart';
+import 'package:chasqui/src/core/models.dart';
+import 'package:chasqui/src/data/state_store.dart';
+import 'package:chasqui/src/mesh/mesh_node.dart';
+import 'package:chasqui/src/mesh/router.dart';
+import 'package:chasqui/src/power/power_policy.dart';
+import 'package:chasqui/src/rescue/light_calibration.dart';
+import 'package:chasqui/src/rescue/morse_log.dart';
 
 import 'support/fake_transport.dart';
 
@@ -21,7 +21,7 @@ void main() {
   late MeshNode node;
 
   setUp(() async {
-    directory = await Directory.systemTemp.createTemp('sinred_node_test');
+    directory = await Directory.systemTemp.createTemp('chasqui_node_test');
     final identity = await NodeIdentity.generate();
     transport = FakeTransport();
     node = MeshNode(
@@ -85,7 +85,7 @@ void main() {
     await node.stop();
 
     final file = File(
-      '${directory.path}${Platform.pathSeparator}sinred_state.json',
+      '${directory.path}${Platform.pathSeparator}chasqui_state.json',
     );
     expect(file.existsSync(), isTrue);
     expect(file.readAsStringSync(), contains('Ana'));
@@ -257,7 +257,7 @@ void main() {
 
     // `_persistNow` es asíncrono: se espera a que el archivo tenga el dato.
     final file = File('${directory.path}${Platform.pathSeparator}'
-        'sinred_state.json');
+        'chasqui_state.json');
     Map<String, dynamic>? json;
     for (var i = 0; i < 40; i++) {
       await pumpEventQueue();

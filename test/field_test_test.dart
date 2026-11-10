@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/rescue/field_test.dart';
-import 'package:sinred/src/rescue/morse.dart';
+import 'package:chasqui/src/rescue/field_test.dart';
+import 'package:chasqui/src/rescue/morse.dart';
 
 void main() {
   group('prueba de campo', () {

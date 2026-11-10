@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Genera el logo de SinRed y todos los iconos de Android desde una sola
+"""Genera el emblema de Chasqui y todos los iconos de Android desde una sola
 definición geométrica.
 
-El logo es una red: un rombo de cuatro nodos conectados al centro. No hay
-arcos de wifi ni barras de cobertura, porque la app existe justo cuando eso
-falta; lo que se ve es la malla que queda cuando no hay torres.
+El emblema es punto, raya y punto: la R de la telegrafía, la misma marca que se
+manda con la linterna. Los dos puntos son verdes y la raya ámbar, los dos colores
+de la app. No hay arcos de wifi ni barras de cobertura, porque la app existe
+justo cuando eso falta.
 
 Uso:
     python tool/make_logo.py
 
-Requiere Pillow. Escribe en android/app/src/main/res/ y en docs/.
+Requiere Pillow. Escribe en android/app/src/main/res/, docs/ y assets/brand/.
 """
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
@@ -22,23 +22,24 @@ from PIL import Image, ImageDraw, ImageFilter
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "android" / "app" / "src" / "main" / "res"
 DOCS = ROOT / "docs"
+BRAND = ROOT / "assets" / "brand"
 
 MASTER = 1024
 SUPERSAMPLE = 2
 
-# Paleta: la misma semilla que SinRedTheme.seed (0xFF0E9F6E), aclarada para que
-# respire sobre fondo oscuro, más un ámbar de emergencia para el nodo central.
+# Paleta: la misma semilla que ChasquiTheme.seed (0xFF0E9F6E), aclarada para que
+# respire sobre fondo oscuro, más el ámbar de la raya.
 INK = (8, 15, 20)
 INK_LIGHT = (22, 35, 43)
-GREEN = (23, 196, 138)
-GREEN_BRIGHT = (43, 227, 155)
+GREEN = (22, 196, 137)
 AMBER = (255, 176, 32)
 WHITE = (255, 255, 255)
 
-GLYPH_SPAN = 0.625  # diámetro del rombo respecto al lienzo maestro
-LINE_WIDTH = 52
-NODE_RADIUS = 84
-HUB_RADIUS = 102
+# Medidas del emblema, como fracción de su ancho total. Salen de la marca
+# original: el punto mide 0.193 del ancho, la raya 0.378 y cada hueco 0.118.
+GLYPH_SPAN = 0.625  # ancho del emblema respecto al lienzo maestro
+ELEMENT = 0.1926  # alto de la raya y diámetro de los puntos
+BAR_LEN = 0.3778  # largo de la raya
 
 
 def _background(size: int) -> Image.Image:
@@ -62,84 +63,48 @@ def _background(size: int) -> Image.Image:
         alpha = int(26 * (1 - i / steps) ** 1.6)
         gdraw.ellipse(
             [size / 2 - r, size / 2 - r, size / 2 + r, size / 2 + r],
-            fill=(emerald := GREEN)[0:3] + (alpha,),
+            fill=GREEN + (alpha,),
         )
     glow = glow.filter(ImageFilter.GaussianBlur(size * 0.04))
     return Image.alpha_composite(img, glow)
 
 
-def _diamond(center: float, half: float) -> list[tuple[float, float]]:
-    return [
-        (center, center - half),
-        (center + half, center),
-        (center, center + half),
-        (center - half, center),
-    ]
+def _glyph(size: int, span: float, *, monochrome: bool = False) -> Image.Image:
+    """Punto, raya y punto centrados, dibujados con supersampling.
 
-
-def _glyph(
-    size: int,
-    span: float,
-    *,
-    monochrome: bool = False,
-    hub: bool = True,
-) -> Image.Image:
-    """El dibujo en sí: rombo de nodos con radios hacia el centro.
-
-    `span` es el diámetro del rombo como fracción del lienzo. Se dibuja con
-    supersampling y se reduce para que los bordes queden limpios en 48 px.
+    `span` es el ancho total del emblema como fracción del lienzo. Se dibuja al
+    doble y se reduce para que los bordes queden limpios hasta en 48 px.
     """
     s = size * SUPERSAMPLE
     img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    center = s / 2
-    half = s * span / 2
-    line_color = WHITE + (255,) if monochrome else GREEN + (235,)
-    node_color = WHITE + (255,) if monochrome else GREEN_BRIGHT + (255,)
-    width = max(2, int(LINE_WIDTH / MASTER * s))
+    width = s * span
+    height = width * ELEMENT
+    bar = width * BAR_LEN
+    dot = height
 
-    points = _diamond(center, half)
-    draw.line(points + [points[0]], fill=line_color, width=width, joint="curve")
-    for point in points:
-        draw.line([(center, center), point], fill=line_color, width=width)
-        # Un disco del color de la línea tapa la junta del rombo.
-        draw.ellipse(
-            [point[0] - width / 2, point[1] - width / 2,
-             point[0] + width / 2, point[1] + width / 2],
-            fill=line_color,
-        )
+    left = s / 2 - width / 2
+    top = s / 2 - height / 2
+    right = left + width
 
-    radius = NODE_RADIUS / MASTER * s
-    for point in points:
-        draw.ellipse(
-            [point[0] - radius, point[1] - radius,
-             point[0] + radius, point[1] + radius],
-            fill=node_color,
-        )
+    node_color = WHITE + (255,) if monochrome else GREEN + (255,)
+    bar_color = WHITE + (255,) if monochrome else AMBER + (255,)
 
-    if hub:
-        hub_radius = HUB_RADIUS / MASTER * s
-        if monochrome:
-            # En el icono temático el centro queda hueco: así el dibujo no se
-            # convierte en una mancha cuando el sistema lo tiñe de un color.
-            hole = hub_radius * 1.5
-            draw.ellipse(
-                [center - hole, center - hole, center + hole, center + hole],
-                fill=(0, 0, 0, 0),
-            )
-        else:
-            draw.ellipse(
-                [center - hub_radius, center - hub_radius,
-                 center + hub_radius, center + hub_radius],
-                fill=AMBER + (255,),
-            )
+    draw.ellipse([left, top, left + dot, top + dot], fill=node_color)
+    bar_left = left + dot + (width - 2 * dot - bar) / 2
+    draw.rounded_rectangle(
+        [bar_left, top, bar_left + bar, top + height],
+        radius=height / 2,
+        fill=bar_color,
+    )
+    draw.ellipse([right - dot, top, right, top + height], fill=node_color)
 
     return img.resize((size, size), Image.LANCZOS)
 
 
 def _squircle(size: int, glyph_span: float) -> Image.Image:
-    """Icono clásico: cuadrado con esquinas redondeadas y el dibujo dentro."""
+    """Icono clásico: cuadrado con esquinas redondeadas y el emblema dentro."""
     base = _background(size)
     mask = Image.new("L", (size, size), 0)
     mdraw = ImageDraw.Draw(mask)
@@ -161,13 +126,11 @@ def _adaptive_layer(size: int, kind: str) -> Image.Image:
     """Capa de icono adaptativo (108 dp de lienzo, contenido dentro de 72 dp)."""
     if kind == "background":
         return _background(size)
-    if kind == "foreground":
-        return _glyph(size, GLYPH_SPAN * 0.99)
-    return _glyph(size, GLYPH_SPAN * 0.99, monochrome=True, hub=True)
+    return _glyph(size, GLYPH_SPAN * 0.99, monochrome=kind == "monochrome")
 
 
 def _splash(size: int) -> Image.Image:
-    return _glyph(size, 0.92, hub=True)
+    return _glyph(size, 0.92)
 
 
 LEGACY = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
@@ -177,6 +140,7 @@ SPLASH = {"mdpi": 132, "hdpi": 198, "xhdpi": 264, "xxhdpi": 396, "xxxhdpi": 528}
 
 def main() -> None:
     DOCS.mkdir(parents=True, exist_ok=True)
+    BRAND.mkdir(parents=True, exist_ok=True)
 
     for density, size in LEGACY.items():
         folder = RES / f"mipmap-{density}"
@@ -198,8 +162,7 @@ def main() -> None:
     # Recursos compartidos: README y pantalla "Acerca de".
     # 512 basta para el README y no engorda el repo con un PNG de 1024.
     _squircle(512, GLYPH_SPAN).save(DOCS / "logo.png")
-    (ROOT / "assets" / "brand").mkdir(parents=True, exist_ok=True)
-    _glyph(512, 0.94).save(ROOT / "assets" / "brand" / "sinred_logo.png")
+    _glyph(512, 0.94).save(BRAND / "chasqui_logo.png")
     print("Logo generado: docs/, assets/brand/ y android/.../res/")
 
 

@@ -11,7 +11,7 @@ import '../core/geo.dart';
 /// El permiso y el GPS los gestiona la capa nativa. Aquí solo se expone el
 /// flujo de posiciones y se traduce a objetos del dominio.
 class LocationService {
-  static const MethodChannel _channel = MethodChannel('sinred/location');
+  static const MethodChannel _channel = MethodChannel('chasqui/location');
   static final StreamController<GeoPoint> _updates =
       StreamController<GeoPoint>.broadcast();
 

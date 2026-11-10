@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/power/power_policy.dart';
+import 'package:chasqui/src/power/power_policy.dart';
 
 void main() {
   const policy = PowerPolicy();

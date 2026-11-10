@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/rescue/light_calibration.dart';
-import 'package:sinred/src/rescue/morse.dart';
-import 'package:sinred/src/rescue/morse_log.dart';
-import 'package:sinred/src/ui/morse_field_test_page.dart';
-import 'package:sinred/src/ui/morse_learn_page.dart';
-import 'package:sinred/src/ui/morse_receiver_page.dart';
-import 'package:sinred/src/ui/telegraph_page.dart';
+import 'package:chasqui/src/rescue/light_calibration.dart';
+import 'package:chasqui/src/rescue/morse.dart';
+import 'package:chasqui/src/rescue/morse_log.dart';
+import 'package:chasqui/src/ui/morse_field_test_page.dart';
+import 'package:chasqui/src/ui/morse_learn_page.dart';
+import 'package:chasqui/src/ui/morse_receiver_page.dart';
+import 'package:chasqui/src/ui/telegraph_page.dart';
 
 /// Pantalla alta: las páginas son listas largas y en 800x600 el juego y el
 /// botón de transmitir quedarían fuera del árbol.

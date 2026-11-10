@@ -204,7 +204,7 @@ class _AddContactPageState extends State<AddContactPage>
       // Se deja seguir escaneando: el siguiente QR puede ser el bueno.
       _scanHandled = false;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ese QR no es un código válido de SinRed')),
+        const SnackBar(content: Text('Ese QR no es un código válido de Chasqui')),
       );
       return;
     }

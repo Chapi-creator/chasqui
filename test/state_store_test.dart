@@ -3,11 +3,11 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/core/bytes.dart';
-import 'package:sinred/src/core/frame.dart';
-import 'package:sinred/src/core/models.dart';
-import 'package:sinred/src/data/state_store.dart';
-import 'package:sinred/src/power/power_policy.dart';
+import 'package:chasqui/src/core/bytes.dart';
+import 'package:chasqui/src/core/frame.dart';
+import 'package:chasqui/src/core/models.dart';
+import 'package:chasqui/src/data/state_store.dart';
+import 'package:chasqui/src/power/power_policy.dart';
 
 AppSnapshot snapshot({String name = 'Ana'}) {
   final frame = MeshFrame(
@@ -53,7 +53,7 @@ void main() {
   late StateStore store;
 
   setUp(() async {
-    directory = await Directory.systemTemp.createTemp('sinred_store_test');
+    directory = await Directory.systemTemp.createTemp('chasqui_store_test');
     store = StateStore(directory: directory);
   });
 
@@ -88,7 +88,7 @@ void main() {
 
     final files = directory.listSync().map((e) => e.path).toList();
     expect(files, hasLength(1), reason: 'no debe quedar el .tmp');
-    expect(files.single, endsWith('sinred_state.json'));
+    expect(files.single, endsWith('chasqui_state.json'));
   });
 
   test('guardados simultáneos no dejan el archivo roto ni el .tmp', () async {
@@ -109,7 +109,7 @@ void main() {
 
   test('un archivo corrupto se detecta en vez de explotar', () async {
     final file = File(
-      '${directory.path}${Platform.pathSeparator}sinred_state.json',
+      '${directory.path}${Platform.pathSeparator}chasqui_state.json',
     );
     await file.writeAsString('{"v": 1, "name": ');
 
@@ -126,7 +126,7 @@ void main() {
       payload: randomBytes(8),
     );
     final file = File(
-      '${directory.path}${Platform.pathSeparator}sinred_state.json',
+      '${directory.path}${Platform.pathSeparator}chasqui_state.json',
     );
     await file.writeAsString(
       jsonEncode({

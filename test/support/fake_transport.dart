@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:sinred/src/transport/transport.dart';
+import 'package:chasqui/src/transport/transport.dart';
 
 /// Radio controlable desde el test: no hay Bluetooth, pero sí los mismos
 /// eventos que produce la radio real.

@@ -297,7 +297,7 @@ class BleMeshTransport implements MeshTransport {
         }
       }
       if (service == null) {
-        throw StateError('Servicio SinRed no encontrado');
+        throw StateError('Servicio Chasqui no encontrado');
       }
       GATTCharacteristic? characteristic;
       for (final candidate in service.characteristics) {
@@ -307,7 +307,7 @@ class BleMeshTransport implements MeshTransport {
         }
       }
       if (characteristic == null) {
-        throw StateError('Característica SinRed no encontrada');
+        throw StateError('Característica Chasqui no encontrada');
       }
       await _central.setCharacteristicNotifyState(
         peripheral,

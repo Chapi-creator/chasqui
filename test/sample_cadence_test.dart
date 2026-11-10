@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sinred/src/rescue/light_calibration.dart';
-import 'package:sinred/src/rescue/sample_cadence.dart';
+import 'package:chasqui/src/rescue/light_calibration.dart';
+import 'package:chasqui/src/rescue/sample_cadence.dart';
 
 void main() {
   group('cadencia del receptor', () {
