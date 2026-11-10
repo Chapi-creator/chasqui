@@ -223,6 +223,12 @@ class _LightSendSheetState extends State<LightSendSheet>
               'segundos a $_unitMs ms por punto.',
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
+            if (_unitMs == 120)
+              Text(
+                'Rápido necesita que la otra cámara vea 30 imágenes por '
+                'segundo. Si no, usá Normal.',
+                style: TextStyle(fontSize: 12, color: scheme.tertiary),
+              ),
             const SizedBox(height: 10),
           ],
           SegmentedButton<int>(

@@ -125,6 +125,54 @@ void main() {
       expect(ok / total, greaterThan(0.8), reason: 'aciertos $ok de $total');
     });
 
+    test('ritmo normal y lento: ninguna lectura sale mal con cámara lenta', () {
+      // Lo que garantiza la app: a 200 ms por punto (el ritmo elegido por
+      // defecto) no falla ninguna lectura con 15 fotogramas por segundo, y a
+      // 300 ms aguanta hasta 12. Se probaron 7 semillas sobre 7 mensajes, con
+      // jitter 0,35, 8 % de fotogramas perdidos y exposición de 30 ms: 49 de 49
+      // en cada caso. Si alguien toca el muestreador o el decodificador y esto
+      // empeora, la suite falla antes de publicar.
+      const frases = [
+        'SOS',
+        'HOLA',
+        'AGUA',
+        'CASA',
+        'AYUDA',
+        'SOS SOS',
+        'NO HAY AGUA',
+      ];
+      for (final seed in [1, 2, 3, 4, 5, 6, 7]) {
+        for (final message in frases) {
+          expect(
+            simulate(
+              message,
+              unitMs: 200,
+              fps: 15,
+              jitter: 0.35,
+              dropRate: 0.08,
+              exposureMs: 30,
+              seed: seed,
+            ),
+            message,
+            reason: 'semilla $seed, 200 ms, 15 por segundo, "$message"',
+          );
+          expect(
+            simulate(
+              message,
+              unitMs: 300,
+              fps: 12,
+              jitter: 0.35,
+              dropRate: 0.08,
+              exposureMs: 30,
+              seed: seed,
+            ),
+            message,
+            reason: 'semilla $seed, 300 ms, 12 por segundo, "$message"',
+          );
+        }
+      }
+    });
+
     test('a ritmo lento no hace falta cámara rápida', () {
       expect(simulate('SOS', unitMs: 300, fps: 12, jitter: 0.35, dropRate: 0.08, exposureMs: 30), 'SOS');
       expect(simulate('HOLA', unitMs: 300, fps: 12, jitter: 0.35, dropRate: 0.08, exposureMs: 30), 'HOLA');

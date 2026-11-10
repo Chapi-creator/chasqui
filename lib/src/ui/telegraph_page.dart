@@ -397,6 +397,12 @@ class _TelegraphPageState extends State<TelegraphPage>
             'entra más mensaje en el mismo tiempo.',
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
+          if (_unitMs == 120)
+            Text(
+              'A 120 ms la otra cámara tiene que dar 30 fotogramas por segundo. '
+              'Si no, se pierden puntos y salen letras cambiadas: usá 200.',
+              style: TextStyle(fontSize: 12, color: scheme.tertiary),
+            ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             dense: true,

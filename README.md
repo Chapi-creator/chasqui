@@ -315,7 +315,7 @@ listo para bajar tocando **Download**, sin compilar nada ni buscar más abajo.
 Ese archivo (`apk/Chasqui.apk`) se reemplaza en cada versión y siempre es la
 última; las viejas quedan en [Releases](https://github.com/Chapi-creator/chasqui/releases).
 
-APK listo para instalar: **`dist/Chasqui-1.1.0.apk`** (71,8 MB, todas las)
+APK listo para instalar: **`dist/Chasqui-1.1.1.apk`** (71,8 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
@@ -323,7 +323,7 @@ La carpeta `dist/` no va en git; el APK que sí está en el repo es
 `apk/Chasqui.apk`, y cada versión se publica además como adjunto del
 [release](https://github.com/Chapi-creator/chasqui/releases), donde quedan las
 anteriores.
-SHA-256: `e1bbcf5781ae0030a96f2e7d97e768de9e7e1cb2f655730f1307813b09abe1e3`.
+SHA-256: `e736c10ef3b35471eea3634f9c2d37b633e2daa1d8ea7a3bd70080547839824f`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -531,7 +531,28 @@ marca que se manda con la linterna.
 - **Pruebas nuevas**: 22 más (canales, fotos, nombre obligatorio y reensamblado),
   total 265. Flutter analyze limpio.
 
-## 11. Qué cambió en la 0.9.0
+## 11. Qué cambió en la 1.1.1
+
+Revisión del decodificador de morse, pedida después de que se reportara que
+seguía leyendo mal. Se midió la cadena completa en simulación (transmisor
+exacto, cámara con fotogramas irregulares y pérdidas, exposición lenta y ruido):
+**1.260 combinaciones** de 7 mensajes × 7 ritmos × 6 cámaras × 5 exposiciones.
+
+- **A 200 y 300 ms por punto no falla ninguna lectura** con 15 fotogramas por
+  segundo; a 300 ms aguanta hasta 12. Es el ritmo normal y el lento.
+- **A 120 ms sí falla** cuando la cámara entrega 20 por segundo o menos, o
+  cuando la exposición tarda 60 ms o más. El motivo no es la traducción: con el
+  ritmo rápido la cámara no llega a ver puntos y pausas de 120 ms, y dos puntos
+  se funden en una raya (S se lee N, U se lee T). No se arregla con umbrales:
+  probar 0,50/0,35, 0,45/0,30 y 0,70/0,50 dio lo mismo o peor.
+- **Aviso en las dos puntas**: al elegir Rápido, el transmisor avisa que hace
+  falta que la otra cámara vea 30 imágenes por segundo; el receptor, cuando
+  estima un ritmo de 140 ms o menos, avisa que si una letra sale cambiada es
+  porque se perdieron puntos, y sugiere pedir 200 ms.
+- **Prueba nueva** que fija lo medido: 49 lecturas correctas de 49 a 200 ms con
+  15 por segundo, y otras 49 a 300 ms con 12 por segundo.
+
+## 12. Qué cambió en la 0.9.0
 
 - **Calibrar el receptor**: un botón en la pantalla del receptor mide dos
   segundos el fondo y dos la luz, y guarda los umbrales de ese lugar. Es lo que
@@ -606,7 +627,7 @@ marca que se manda con la linterna.
   duraciones acierta el 100 % de los mensajes de prueba; con un 2 % de
   fotogramas perdidos, el 89-96 %.
 
-## 12. Qué cambió en la 0.7.1
+## 13. Qué cambió en la 0.7.1
 
 - **Icono nuevo de la app**: el lanzador, el icono redondo y el temático de
   Android 13+ pasan a ser el emblema de Telegrafía —punto, raya y punto sobre
@@ -619,7 +640,7 @@ marca que se manda con la linterna.
 - En esa versión el logo de la malla siguió en el arranque y en Ajustes; la
   1.0.0 lo reemplazó por el emblema.
 
-## 13. Qué cambió en la 0.7.0
+## 14. Qué cambió en la 0.7.0
 
 **Telegrafía**: el morse deja de ser solo el SOS y pasa a servir para cualquier
 mensaje.
@@ -653,7 +674,7 @@ repetición del mensaje con el mismo motor del SOS.
 Lo que sigue sin poder probarse sin teléfono: si el pitido se oye, si la
 linterna alumbra y si el brillo alcanza al sol.
 
-## 14. Qué cambió en la 0.6.0
+## 15. Qué cambió en la 0.6.0
 
 El teléfono como herramienta de rescate, sin radio de por medio:
 
@@ -687,7 +708,7 @@ El teléfono como herramienta de rescate, sin radio de por medio:
 Lo que no se puede probar sin un teléfono es la parte física: si la linterna
 alumbra, si la sirena suena fuerte y si el brillo forzado alcanza al sol.
 
-## 15. Qué cambió en la 0.5.5
+## 16. Qué cambió en la 0.5.5
 
 Identidad visual, sin tocar el funcionamiento de la malla:
 
@@ -702,7 +723,7 @@ Identidad visual, sin tocar el funcionamiento de la malla:
   blanco, también en Android 12+ (`windowSplashScreenBackground`).
 - El logo aparece en Ajustes, sobre la versión, y en este README.
 
-## 16. Qué cambió en la 0.5.4
+## 17. Qué cambió en la 0.5.4
 
 Todo para que la app gaste lo mínimo cuando la energía es el problema:
 
@@ -730,7 +751,7 @@ Todo para que la app gaste lo mínimo cuando la energía es el problema:
 Lo que no cambia: la app no puede medir su consumo real sin un teléfono, así
 que las horas de autonomía sigues siendo estimaciones de diseño.
 
-## 17. Qué cambió en la 0.5.3
+## 18. Qué cambió en la 0.5.3
 
 **Tablero de emergencia**, la información que se necesita después de un sismo o
 una inundación, ordenada para que sirva en vez de estorbar:
@@ -755,7 +776,7 @@ una inundación, ordenada para que sirva en vez de estorbar:
   de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
   y se publica de verdad). Total: **119 pruebas**.
 
-## 18. Qué cambió en la 0.5.2
+## 19. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -777,7 +798,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 19. Qué cambió en la 0.5.1
+## 20. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -810,7 +831,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 20. Licencia
+## 21. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),

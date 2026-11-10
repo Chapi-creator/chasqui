@@ -826,6 +826,20 @@ class _MorseReceiverPageState extends State<MorseReceiverPage>
                       'por punto',
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
+          // A 120 ms por punto la información existe en la imagen solo si la
+          // cámara entrega 30 fotogramas por segundo. Con menos, o con
+          // exposición lenta, hay puntos y pausas que no llegan a verse y dos
+          // puntos se pegan en una raya: no es que la traducción falle, es que
+          // falta el dato. Medido en simulación: a 200 ms no falla ninguna
+          // lectura con 15 por segundo; a 120 empieza a fallar por debajo de 20.
+          if ((reading.unitMs ?? 999) <= 140) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Va rápido. Si alguna letra sale cambiada, no es el mensaje: con '
+              'cámara lenta se pierden puntos. Pedí que manden a 200 ms.',
+              style: TextStyle(fontSize: 12, color: scheme.tertiary),
+            ),
+          ],
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
