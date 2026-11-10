@@ -15,7 +15,15 @@ enum FrameType {
   location(4),
 
   /// Mensaje del canal abierto "Todos" (cifrado con clave de grupo).
-  channel(5);
+  channel(5),
+
+  /// Mensaje de un canal con nombre ("Refugio Norte"): clave derivada del
+  /// nombre y de la contraseña opcional. Los teléfonos con una versión
+  /// anterior no lo entienden y lo descartan sin reenviarlo.
+  channelNamed(6),
+
+  /// Trozo de una foto cifrada para un contacto concreto.
+  photo(7);
 
   const FrameType(this.code);
   final int code;

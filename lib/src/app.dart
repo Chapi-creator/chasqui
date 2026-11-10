@@ -12,6 +12,7 @@ import 'platform/power_service.dart';
 import 'ui/active_chat.dart';
 import 'ui/chat_page.dart';
 import 'ui/home_page.dart';
+import 'ui/setup_page.dart';
 import 'ui/theme.dart';
 
 class ChasquiApp extends StatefulWidget {
@@ -133,8 +134,20 @@ class _ChasquiAppState extends State<ChasquiApp> with WidgetsBindingObserver {
         theme: ChasquiTheme.light(),
         darkTheme: ChasquiTheme.dark(),
         themeMode: ThemeMode.system,
-        home: const HomePage(),
+        home: const _Root(),
       ),
     );
+  }
+}
+
+/// Decide qué pantalla se ve: la bienvenida mientras falte el nombre, la app
+/// normal después. Escucha al nodo para cambiar en cuanto se completa.
+class _Root extends StatelessWidget {
+  const _Root();
+
+  @override
+  Widget build(BuildContext context) {
+    final node = context.watch<MeshNode>();
+    return node.needsSetup ? const SetupPage() : const HomePage();
   }
 }

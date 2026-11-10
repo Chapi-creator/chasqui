@@ -8,6 +8,7 @@ import '../platform/app_share.dart';
 import '../platform/location_service.dart';
 import '../platform/power_service.dart';
 import '../power/power_policy.dart';
+import 'guide_page.dart';
 import 'widgets.dart';
 
 /// Texto que explica cuánta radio se está gastando ahora mismo.
@@ -86,6 +87,23 @@ class SettingsPage extends StatelessWidget {
                 icon: const Icon(Icons.edit_outlined),
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        _SectionTitle(title: 'Ayuda'),
+        const SizedBox(height: 8),
+        InfoCard(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: ListTile(
+            leading: Icon(Icons.menu_book_outlined, color: scheme.primary),
+            title: const Text('Guía de uso'),
+            subtitle: const Text(
+              'Qué hace cada función y cómo se usa, con consejos y límites',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const GuidePage()),
+            ),
           ),
         ),
         const SizedBox(height: 22),

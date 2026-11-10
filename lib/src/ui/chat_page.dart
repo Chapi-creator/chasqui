@@ -9,19 +9,28 @@ import 'package:provider/provider.dart';
 import '../core/channel.dart';
 import '../core/geo.dart';
 import '../core/models.dart';
+import '../core/named_channel.dart';
 import '../mesh/mesh_node.dart';
 import '../platform/compass_service.dart';
 import '../platform/location_service.dart';
+import '../platform/photo_service.dart';
 import 'active_chat.dart';
 import 'board_page.dart';
 import 'light_send_sheet.dart';
 import 'widgets.dart';
 
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, required this.peerId});
+  const ChatPage({super.key, required this.peerId, this.channel});
+
+  /// Chat de un canal con nombre, con su propio historial y su clave.
+  ChatPage.channel(this.channel, {super.key})
+    : peerId = 'canal:${channel!.id}';
 
   /// Id del nodo, o [MeshNode.channelId] para el canal abierto "Todos".
   final String peerId;
+
+  /// Canal con nombre, si la conversación es de uno.
+  final NamedChannel? channel;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -38,6 +47,8 @@ class _ChatPageState extends State<ChatPage> {
   bool _compassScheduled = false;
 
   bool get _isChannel => widget.peerId == MeshNode.channelId;
+  bool get _isNamed => widget.channel != null;
+  bool get _isGroup => _isChannel || _isNamed;
 
   @override
   void initState() {
@@ -58,7 +69,7 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _send(MeshNode node) async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
-    final limit = _isChannel
+    final limit = _isGroup
         ? MeshNode.maxChannelBytes
         : MeshNode.maxMessageBytes;
     if (utf8.encode(text).length > limit) {
@@ -74,7 +85,9 @@ class _ChatPageState extends State<ChatPage> {
     }
     setState(() => _sending = true);
     _controller.clear();
-    if (_isChannel) {
+    if (_isNamed) {
+      await node.sendNamedChannelMessage(widget.channel!, text);
+    } else if (_isChannel) {
       await node.sendChannelMessage(text);
     } else {
       await node.sendMessage(widget.peerId, text);
@@ -128,6 +141,77 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  /// Elige una foto, la muestra antes de gastar radio y la manda si acepta.
+  Future<void> _pickPhoto(MeshNode node) async {
+    if (_sending || _isGroup) return;
+    final photo = await PhotoService.pick();
+    if (photo == null || !mounted) return;
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Mandar la foto'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.memory(
+                photo.bytes,
+                height: 180,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '${photo.kilobytes} KB · ${PhotoService.estimate(photo.bytes.length)}\n'
+              'Se achica antes de salir: por Bluetooth no entra una foto de '
+              'cámara entera.',
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+    if (send != true || !mounted) return;
+    setState(() => _sending = true);
+    final ok = await node.sendPhoto(widget.peerId, photo.bytes);
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Esa foto no entra en la malla. Probá con una más simple.'),
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          node.connectedLinks > 0
+              ? 'Foto en camino. Si se corta, se reintenta sola.'
+              : 'Foto en cola: sale cuando haya alguien al alcance.',
+        ),
+      ),
+    );
+    _scrollToLatest();
+  }
+
   Future<void> _sendSos(MeshNode node) async {
     if (_sending) return;
     setState(() => _sending = true);
@@ -164,7 +248,7 @@ class _ChatPageState extends State<ChatPage> {
 
   /// La brújula solo se enciende si hay a quién apuntar.
   void _ensureCompass(MeshNode node) {
-    if (_isChannel || _compassTried) return;
+    if (_isGroup || _compassTried) return;
     final peer = node.peer(widget.peerId);
     if (peer?.location == null || node.myLocation == null) return;
     _compassTried = true;
@@ -177,11 +261,11 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final node = context.watch<MeshNode>();
-    final peer = _isChannel ? null : node.peer(widget.peerId);
+    final peer = _isGroup ? null : node.peer(widget.peerId);
     final messages = node.messagesFor(widget.peerId).reversed.toList();
     final scheme = Theme.of(context).colorScheme;
 
-    if (!_isChannel && peer == null) {
+    if (!_isGroup && peer == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Nodo desconocido')),
         body: const Center(
@@ -213,8 +297,8 @@ class _ChatPageState extends State<ChatPage> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: _isChannel ? null : 0,
-        title: _isChannel
-            ? _ChannelTitle(node: node)
+        title: _isGroup
+            ? _ChannelTitle(node: node, channel: widget.channel)
             : Row(
                 children: [
                   PeerAvatar(
@@ -262,10 +346,10 @@ class _ChatPageState extends State<ChatPage> {
               ),
               icon: const Icon(Icons.dashboard_outlined),
             ),
-          if (_isChannel)
+          if (_isGroup)
             IconButton(
-              tooltip: 'Qué es el canal',
-              onPressed: () => _showChannelInfo(context),
+              tooltip: 'Qué es este canal',
+              onPressed: () => _showChannelInfo(context, node),
               icon: const Icon(Icons.info_outline),
             ),
           // Alguien con quien ya hablas puede pasar a la libreta sin salir.
@@ -295,7 +379,9 @@ class _ChatPageState extends State<ChatPage> {
             ),
           Expanded(
             child: messages.isEmpty
-                ? (_isChannel ? const _EmptyChannel() : _EmptyChat(peer: peer!))
+                ? (_isGroup
+                      ? _EmptyChannel(named: widget.channel)
+                      : _EmptyChat(peer: peer!))
                 : ListView.builder(
                     controller: _scrollController,
                     reverse: true,
@@ -320,7 +406,15 @@ class _ChatPageState extends State<ChatPage> {
                     },
                   ),
           ),
-          if (_isChannel)
+          if (_isNamed)
+            _Composer(
+              controller: _controller,
+              sending: _sending,
+              enabled: node.connectedLinks > 0,
+              onSend: () => _send(node),
+              onLocation: null,
+            )
+          else if (_isChannel)
             _ChannelComposer(
               controller: _controller,
               sending: _sending,
@@ -339,6 +433,7 @@ class _ChatPageState extends State<ChatPage> {
               enabled: peer!.directLink || node.connectedLinks > 0,
               onSend: () => _send(node),
               onLocation: () => _sendLocation(node),
+              onPhoto: () => _pickPhoto(node),
             ),
         ],
       ),
@@ -362,7 +457,40 @@ class _ChatPageState extends State<ChatPage> {
         : 'Sin señal · $proximity';
   }
 
-  Future<void> _showChannelInfo(BuildContext context) {
+  Future<void> _showChannelInfo(BuildContext context, MeshNode node) async {
+    final channel = widget.channel;
+    if (channel != null) {
+      final leave = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(channel.name),
+          content: Text(
+            'Canal con nombre. Entra cualquiera que escriba el nombre '
+            '${channel.isPrivate ? 'y la clave' : '(este no tiene clave)'}, '
+            'así que tratalo como una conversación de grupo, no como un chat '
+            'privado.\n\n'
+            'ID del canal: ${channel.id}\n'
+            'Los mensajes se repiten hasta 7 saltos y quedan guardados si no '
+            'hay nadie cerca.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Volver'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Salir del canal'),
+            ),
+          ],
+        ),
+      );
+      if (leave == true) {
+        await node.leaveChannel(channel.id);
+        if (context.mounted) Navigator.of(context).pop();
+      }
+      return;
+    }
     return showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -394,9 +522,10 @@ class _ChatPageState extends State<ChatPage> {
 }
 
 class _ChannelTitle extends StatelessWidget {
-  const _ChannelTitle({required this.node});
+  const _ChannelTitle({required this.node, this.channel});
 
   final MeshNode node;
+  final NamedChannel? channel;
 
   @override
   Widget build(BuildContext context) {
@@ -408,7 +537,7 @@ class _ChannelTitle extends StatelessWidget {
           radius: 18,
           backgroundColor: scheme.primaryContainer,
           child: Icon(
-            Icons.campaign_outlined,
+            channel == null ? Icons.campaign_outlined : Icons.tag,
             size: 20,
             color: scheme.onPrimaryContainer,
           ),
@@ -418,12 +547,17 @@ class _ChannelTitle extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Todos',
-                style: TextStyle(fontWeight: FontWeight.w600),
+              Text(
+                channel?.name ?? 'Todos',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               Text(
-                links > 0
+                channel != null
+                    ? '${channel!.isPrivate ? 'Con clave' : 'Canal abierto'}'
+                          ' · ${links > 0 ? '$links ${links == 1 ? 'enlace' : 'enlaces'}' : 'sin enlaces ahora'}'
+                    : links > 0
                     ? 'Canal abierto · $links ${links == 1 ? 'enlace' : 'enlaces'}'
                     : 'Canal abierto · sin enlaces ahora',
                 style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
@@ -577,7 +711,9 @@ class _Bubble extends StatelessWidget {
                   ],
                 ),
               ),
-            if (message.kind == MessageKind.location &&
+            if (message.kind == MessageKind.photo)
+              _PhotoContent(message: message)
+            else if (message.kind == MessageKind.location &&
                 message.location != null)
               _LocationContent(
                 message: message,
@@ -662,6 +798,102 @@ class _Bubble extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Foto de la conversación. Se carga del archivo cuando la burbuja se dibuja:
+/// nunca se mete la imagen entera en el estado ni en el historial.
+class _PhotoContent extends StatelessWidget {
+  const _PhotoContent({required this.message});
+
+  final ChatMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final node = context.read<MeshNode>();
+    return FutureBuilder<Uint8List?>(
+      future: node.photoBytes(message.photo),
+      builder: (context, snapshot) {
+        final bytes = snapshot.data;
+        if (bytes == null) {
+          final waiting = message.photo == null && !message.outgoing;
+          return Container(
+            width: 180,
+            height: 120,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  waiting ? Icons.downloading : Icons.broken_image_outlined,
+                  color: scheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  waiting ? 'Foto en camino' : 'Foto no disponible',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        return GestureDetector(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => PhotoViewerPage(
+                bytes: bytes,
+                label: message.outgoing
+                    ? 'Foto enviada'
+                    : 'Foto de ${message.senderName ?? 'la malla'}',
+              ),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.memory(
+              bytes,
+              width: 210,
+              height: 160,
+              fit: BoxFit.cover,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Foto a pantalla completa, con la opción de acercarla.
+class PhotoViewerPage extends StatelessWidget {
+  const PhotoViewerPage({super.key, required this.bytes, this.label});
+
+  final Uint8List bytes;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(label ?? 'Foto'),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          maxScale: 5,
+          child: Image.memory(bytes, fit: BoxFit.contain),
         ),
       ),
     );
@@ -829,30 +1061,43 @@ class _EmptyChat extends StatelessWidget {
 }
 
 class _EmptyChannel extends StatelessWidget {
-  const _EmptyChannel();
+  const _EmptyChannel({this.named});
+
+  final NamedChannel? named;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final channel = named;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.campaign_outlined, size: 44, color: scheme.primary),
+            Icon(
+              channel == null ? Icons.campaign_outlined : Icons.tag,
+              size: 44,
+              color: scheme.primary,
+            ),
             const SizedBox(height: 12),
             Text(
-              'El canal de la malla',
+              channel?.name ?? 'El canal de la malla',
+              textAlign: TextAlign.center,
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(
-              'Escribe un aviso corto y lo recibirá cualquiera que esté cerca, '
-              'aunque no sea tu contacto. Con el botón SOS mandas tu posición '
-              'y se repite hasta que alguien lo escuche.',
+              channel == null
+                  ? 'Escribe un aviso corto y lo recibirá cualquiera que esté '
+                        'cerca, aunque no sea tu contacto. Con el botón SOS '
+                        'mandas tu posición y se repite hasta que alguien lo '
+                        'escuche.'
+                  : 'Nadie habló todavía en este canal. Lo lee quien haya '
+                        'entrado con el mismo nombre'
+                        '${channel.isPrivate ? ' y la misma clave' : ''}.',
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
             ),
@@ -1009,13 +1254,20 @@ class _Composer extends StatelessWidget {
     required this.enabled,
     required this.onSend,
     required this.onLocation,
+    this.onPhoto,
   });
 
   final TextEditingController controller;
   final bool sending;
   final bool enabled;
   final VoidCallback onSend;
-  final VoidCallback onLocation;
+
+  /// Null en un canal con nombre: la ubicación se comparte en un chat privado
+  /// (va cifrada para una persona, no para un grupo que se junta por nombre).
+  final VoidCallback? onLocation;
+
+  /// Null en canales: la foto va cifrada para un contacto concreto.
+  final VoidCallback? onPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -1027,11 +1279,18 @@ class _Composer extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            IconButton(
-              tooltip: 'Enviar mi ubicación',
-              onPressed: sending ? null : onLocation,
-              icon: const Icon(Icons.my_location, size: 20),
-            ),
+            if (onLocation != null)
+              IconButton(
+                tooltip: 'Enviar mi ubicación',
+                onPressed: sending ? null : onLocation,
+                icon: const Icon(Icons.my_location, size: 20),
+              ),
+            if (onPhoto != null)
+              IconButton(
+                tooltip: 'Mandar una foto',
+                onPressed: sending ? null : onPhoto,
+                icon: const Icon(Icons.photo_camera_outlined, size: 20),
+              ),
             Expanded(
               child: TextField(
                 controller: controller,

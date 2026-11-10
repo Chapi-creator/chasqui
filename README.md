@@ -32,8 +32,16 @@ ratos para no comerse la batería).
   el chat de esa persona (donde también se puede agregar a contactos).
 - **Botón de ubicación** en el chat para mandar las coordenadas en el momento,
   sin pasar por Ajustes.
+- **Fotos por la malla**: en un chat se elige una foto del teléfono, se achica a
+  ~40 KB y viaja cifrada en trozos de 3 KB. Tarda entre 10 y 30 segundos de
+  estar cerca, queda en cola si no hay nadie y se ve la imagen completa al
+  tocarla. El original nunca sale del teléfono.
 - **Canal "Todos"**: un canal abierto para avisar a cualquiera que esté cerca,
   sin agregarlo como contacto. Está fijo arriba en Chats.
+- **Canales con nombre**: cualquiera crea "Refugio Norte", "Cuadrilla 3" o
+  "Edificio B" y los demás entran escribiendo el mismo nombre. Con clave
+  opcional, solo lo lee quien la sepa. El nombre es el canal: no hay servidor
+  que lo registre.
 - **Estados rápidos**: "Estoy bien", "Necesito ayuda", "Estoy atrapado", con tu
   batería adjunta, en un toque.
 - **SOS** con pulsación larga: manda tu posición, se repite y queda en cola
@@ -66,6 +74,12 @@ ratos para no comerse la batería).
 - **Panel de señales de rescate**: SOS en morse con pantalla y linterna, sirena,
   símbolos X / V / flecha y contador de tiempo desde el último avistamiento.
   Sin radio: sirve aunque la malla esté en reposo o sin Bluetooth.
+- **Nombre obligatorio al instalar**: la primera vez la app pide cómo te llamas
+  y no deja seguir sin nombre. Antes todos aparecían como "Yo" y en el canal
+  había cinco "Yo" pidiendo ayuda sin saber quién era quién.
+- **Guía de uso dentro de la app**: Ajustes → Ayuda, o desde la bienvenida.
+  Explica cada función, cómo se usa, qué límites tiene y qué hacer si algo no
+  anda. Está escrita adentro del APK porque no hay internet para buscarla.
 
 ### El canal abierto y el SOS
 
@@ -296,19 +310,21 @@ flutter test
 flutter build apk --release
 ```
 
-APK listo para instalar: **`dist/Chasqui-1.0.0.apk`** (71 MB, todas las)
+APK listo para instalar: **`dist/Chasqui-1.1.0.apk`** (71,8 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
 La carpeta `dist/` no va en git: el APK se publica como adjunto del release.
 Los [releases](https://github.com/Chapi-creator/chasqui/releases) tienen las
 versiones anteriores.
-SHA-256: `4a23bb32e576cef3562b798deefa0a23e7305372ea0e4308f229e436f9a2db31`.
+SHA-256: `e1bbcf5781ae0030a96f2e7d97e768de9e7e1cb2f655730f1307813b09abe1e3`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
 
-Al abrir la app pide permisos de Bluetooth y de notificaciones; los de Bluetooth
+Al abrir la app lo primero es **poner tu nombre** (obligatorio: en la malla es
+lo único que ve el otro lado) y ver la introducción con acceso a la guía. Después
+pide permisos de Bluetooth y de notificaciones; los de Bluetooth
 son obligatorios para que la malla funcione en segundo plano. El de cámara solo
 se pide la primera vez que abres la pestaña **Escanear**, y el de ubicación solo
 cuando activas **Compartir mi ubicación** en Ajustes o pulsas el botón de
@@ -422,16 +438,34 @@ test/                           protocolo, malla, energía y humo de UI
   `lib/`, que no aparecen.
 - Compartir el APK depende de que el otro teléfono acepte instalar apps de
   origen desconocido; Quick Share puede pedir confirmación en ambos lados.
+- Una **foto** tarda entre 10 y 30 segundos con los dos teléfonos cerca: el BLE
+  da 1–3 KB/s reales. Se achica a 480 px y ~40 KB antes de salir; el original
+  no se manda ni se guarda. Se guardan las últimas 80 fotos y las más viejas se
+  borran solas.
+- Si se pierden trozos de una foto, el emisor los reintenta con toda la cola
+  hasta 24 h; no hay forma de pedir "solo el trozo 7" en un encuentro corto.
+  Una foto a medio llegar se muestra como "foto en camino" y no se puede abrir.
+- Los **canales con nombre** usan dos tipos de trama nuevos (`channelNamed` y
+  `photo`). Un teléfono con una versión anterior de la app los descarta y no los
+  reenvía: los canales y las fotos funcionan entre versiones 1.1.0 o mayores,
+  aunque la malla y el canal "Todos" siguen hablando con las viejas.
+- La **clave de un canal** se guarda en tu teléfono para poder volver a derivar
+  la llave al abrir la app; quien tenga el teléfono desbloqueado puede leerla.
+  Es una contraseña de grupo, no un secreto criptográfico guardado en hardware.
+- Un canal **no tiene moderación ni membresía**: entra quien sabe el nombre (y la
+  clave) y no hay forma de expulsar a nadie. Salir del canal borra su historial
+  de tu teléfono, no el de los demás.
 
 ## 8. Siguientes pasos razonables
 
 1. Medir consumo real 8 h con la app en segundo plano y ajustar la tabla.
 2. Ratchet por conversación y ACK firmado.
 3. Puente LoRa (Heltec / T-Beam) como transporte adicional: ahí sí hay km.
-4. Envío de fotos y notas de voz por trozos (hoy el canal es solo texto).
-5. Descubrimiento por `service data` en el advertising para ahorrar el escaneo.
-6. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
-7. Firma de los avisos del canal con una clave de coordinador de confianza.
+4. Notas de voz por trozos, con el mismo mecanismo de las fotos.
+5. Fotos también en el canal "Todos" y en el tablero (hoy solo en chats 1 a 1).
+6. Descubrimiento por `service data` en el advertising para ahorrar el escaneo.
+7. Transferencia directa del APK por Wi-Fi Direct (hoy usa la hoja del sistema).
+8. Firma de los avisos del canal con una clave de coordinador de confianza.
 
 ## 9. Qué cambió en la 1.0.0
 
@@ -467,7 +501,31 @@ marca que se manda con la linterna.
   servicio BLE. Son protocolo, no marca: si cambian, un teléfono con la versión
   anterior deja de entender al nuevo y la malla se parte en dos.
 
-## 10. Qué cambió en la 0.9.0
+## 10. Qué cambió en la 1.1.0
+
+- **Tu nombre es obligatorio al instalar.** La primera pantalla pide el nombre y
+  no deja continuar sin él (2 a 24 caracteres). Después viene una introducción
+  corta con lo que trae la app y un acceso a la guía completa. El nombre se
+  puede cambiar después en Ajustes, pero ya nadie arranca como "Yo".
+- **Guía de uso completa** dentro de la app (Ajustes → Ayuda): qué hace cada
+  pantalla, cómo se usa, qué límites tiene y qué hacer si algo no funciona.
+  Sin internet, la ayuda tiene que viajar en el APK.
+- **Canales con nombre.** Cualquiera crea un canal y los demás entran con el
+  mismo nombre; con clave opcional, solo lo lee quien la sepa. El id y la llave
+  salen de SHA-256 del nombre normalizado (minúsculas, sin espacios de más) y de
+  la clave: no hay servidor que registre nada. Los mensajes van cifrados con
+  AES-256-GCM, se repiten hasta 7 saltos, quedan en cola si no hay nadie cerca y
+  solo los reenvía quien está en el canal (los demás no pueden verificarlos).
+- **Fotos por la malla.** El selector del sistema no pide permisos; Android
+  achica la imagen a 480 px y ~40 KB, Dart la parte en trozos de 3 KB cifrados
+  para el contacto y cada trozo es una trama independiente. Se reensamblan en
+  el receptor aunque lleguen en desorden o por caminos distintos, y la
+  confirmación es de la foto entera: el emisor marca "entregado" cuando la
+  imagen se pudo armar y recién ahí deja de repetir sus trozos.
+- **Pruebas nuevas**: 22 más (canales, fotos, nombre obligatorio y reensamblado),
+  total 265. Flutter analyze limpio.
+
+## 11. Qué cambió en la 0.9.0
 
 - **Calibrar el receptor**: un botón en la pantalla del receptor mide dos
   segundos el fondo y dos la luz, y guarda los umbrales de ese lugar. Es lo que
@@ -542,7 +600,7 @@ marca que se manda con la linterna.
   duraciones acierta el 100 % de los mensajes de prueba; con un 2 % de
   fotogramas perdidos, el 89-96 %.
 
-## 11. Qué cambió en la 0.7.1
+## 12. Qué cambió en la 0.7.1
 
 - **Icono nuevo de la app**: el lanzador, el icono redondo y el temático de
   Android 13+ pasan a ser el emblema de Telegrafía —punto, raya y punto sobre
@@ -555,7 +613,7 @@ marca que se manda con la linterna.
 - En esa versión el logo de la malla siguió en el arranque y en Ajustes; la
   1.0.0 lo reemplazó por el emblema.
 
-## 12. Qué cambió en la 0.7.0
+## 13. Qué cambió en la 0.7.0
 
 **Telegrafía**: el morse deja de ser solo el SOS y pasa a servir para cualquier
 mensaje.
@@ -589,7 +647,7 @@ repetición del mensaje con el mismo motor del SOS.
 Lo que sigue sin poder probarse sin teléfono: si el pitido se oye, si la
 linterna alumbra y si el brillo alcanza al sol.
 
-## 13. Qué cambió en la 0.6.0
+## 14. Qué cambió en la 0.6.0
 
 El teléfono como herramienta de rescate, sin radio de por medio:
 
@@ -623,7 +681,7 @@ El teléfono como herramienta de rescate, sin radio de por medio:
 Lo que no se puede probar sin un teléfono es la parte física: si la linterna
 alumbra, si la sirena suena fuerte y si el brillo forzado alcanza al sol.
 
-## 14. Qué cambió en la 0.5.5
+## 15. Qué cambió en la 0.5.5
 
 Identidad visual, sin tocar el funcionamiento de la malla:
 
@@ -638,7 +696,7 @@ Identidad visual, sin tocar el funcionamiento de la malla:
   blanco, también en Android 12+ (`windowSplashScreenBackground`).
 - El logo aparece en Ajustes, sobre la versión, y en este README.
 
-## 15. Qué cambió en la 0.5.4
+## 16. Qué cambió en la 0.5.4
 
 Todo para que la app gaste lo mínimo cuando la energía es el problema:
 
@@ -666,7 +724,7 @@ Todo para que la app gaste lo mínimo cuando la energía es el problema:
 Lo que no cambia: la app no puede medir su consumo real sin un teléfono, así
 que las horas de autonomía sigues siendo estimaciones de diseño.
 
-## 16. Qué cambió en la 0.5.3
+## 17. Qué cambió en la 0.5.3
 
 **Tablero de emergencia**, la información que se necesita después de un sismo o
 una inundación, ordenada para que sirva en vez de estorbar:
@@ -691,7 +749,7 @@ una inundación, ordenada para que sirva en vez de estorbar:
   de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
   y se publica de verdad). Total: **119 pruebas**.
 
-## 17. Qué cambió en la 0.5.2
+## 18. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -713,7 +771,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 18. Qué cambió en la 0.5.1
+## 19. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -746,7 +804,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 19. Licencia
+## 20. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),

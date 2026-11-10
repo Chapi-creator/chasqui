@@ -193,13 +193,16 @@ class ChannelCrypto {
     }();
   }
 
+  /// [key] permite cifrar canales con nombre, cuya clave sale del nombre y la
+  /// contraseña elegida. Sin clave se usa la del canal abierto "Todos".
   static Future<Uint8List> seal({
     required List<int> plaintext,
     required List<int> aad,
+    SecretKey? key,
   }) async {
     final box = await _aes.encrypt(
       plaintext,
-      secretKey: await _key(),
+      secretKey: key ?? await _key(),
       nonce: randomBytes(nonceLength),
       aad: aad,
     );
@@ -210,6 +213,7 @@ class ChannelCrypto {
   static Future<Uint8List> open({
     required List<int> sealed,
     required List<int> aad,
+    SecretKey? key,
   }) async {
     if (sealed.length <= nonceLength + macLength) {
       throw const FormatException('Canal: payload demasiado corto');
@@ -219,7 +223,11 @@ class ChannelCrypto {
       nonceLength: nonceLength,
       macLength: macLength,
     );
-    final clear = await _aes.decrypt(box, secretKey: await _key(), aad: aad);
+    final clear = await _aes.decrypt(
+      box,
+      secretKey: key ?? await _key(),
+      aad: aad,
+    );
     return Uint8List.fromList(clear);
   }
 }

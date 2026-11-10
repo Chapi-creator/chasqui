@@ -6,6 +6,7 @@ import '../core/models.dart';
 import '../mesh/mesh_node.dart';
 import 'add_contact_page.dart';
 import 'board_page.dart';
+import 'channels_page.dart';
 import 'chat_page.dart';
 import 'contacts_page.dart';
 import 'nodes_page.dart';
@@ -225,13 +226,14 @@ class _ChatsTab extends StatelessWidget {
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: conversations.isEmpty ? 3 : conversations.length + 2,
+      itemCount: conversations.isEmpty ? 4 : conversations.length + 3,
       separatorBuilder: (_, index) => const Divider(height: 1, indent: 76),
       itemBuilder: (context, index) {
         if (index == 0) return _ChannelTile(node: node);
         if (index == 1) return _BoardTile(node: node);
+        if (index == 2) return _ChannelsTile(node: node);
         if (conversations.isEmpty) return _EmptyChats(node: node);
-        final peer = conversations[index - 2];
+        final peer = conversations[index - 3];
         final last = node.lastMessageFor(peer.id);
         return ListTile(
           leading: PeerAvatar(name: peer.name, online: peer.directLink),
@@ -396,6 +398,54 @@ class _BoardTile extends StatelessWidget {
       onTap: () => Navigator.of(
         context,
       ).push(MaterialPageRoute<void>(builder: (_) => const BoardPage())),
+    );
+  }
+}
+
+/// Entrada a los canales con nombre ("Refugio Norte", "Cuadrilla 3").
+class _ChannelsTile extends StatelessWidget {
+  const _ChannelsTile({required this.node});
+
+  final MeshNode node;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final channels = node.channels;
+    return ListTile(
+      leading: CircleAvatar(
+        radius: 22,
+        backgroundColor: scheme.tertiaryContainer,
+        child: Icon(Icons.tag, color: scheme.onTertiaryContainer),
+      ),
+      title: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Canales',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (channels.isNotEmpty)
+            Text(
+              '${channels.length}',
+              style: TextStyle(fontSize: 12, color: scheme.primary),
+            ),
+        ],
+      ),
+      subtitle: Text(
+        channels.isEmpty
+            ? 'Creá uno con nombre y que los demás entren'
+            : channels.map((c) => c.name).join(' · '),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: scheme.onSurfaceVariant),
+      ),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const ChannelsPage()),
+      ),
     );
   }
 }

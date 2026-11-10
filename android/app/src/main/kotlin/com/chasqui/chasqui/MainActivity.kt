@@ -1,12 +1,15 @@
 package com.chasqui.chasqui
 
 import android.Manifest
+import android.app.Activity
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -22,6 +25,7 @@ import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.io.File
 
 class MainActivity : FlutterActivity() {
@@ -39,8 +43,13 @@ class MainActivity : FlutterActivity() {
     private val sensorChannelName = "chasqui/sensors"
     private val shareChannelName = "chasqui/share"
     private val rescueChannelName = "chasqui/rescue"
+    private val photoChannelName = "chasqui/photo"
     private val permissionRequestCode = 71
     private val locationPermissionRequestCode = 72
+    private val photoPickRequestCode = 73
+
+    /** Tope de la foto ya comprimida: entra en ~15 trozos de malla. */
+    private val MAX_PHOTO_BYTES = 42 * 1024
     private val contactChannelId = "chasqui_contacts"
 
     private var powerChannel: MethodChannel? = null
@@ -48,6 +57,9 @@ class MainActivity : FlutterActivity() {
     private var sensorChannel: MethodChannel? = null
     private var shareChannel: MethodChannel? = null
     private var rescueChannel: MethodChannel? = null
+
+    /** Resultado de Dart esperando a que el usuario elija una foto. */
+    private var pendingPhotoResult: MethodChannel.Result? = null
     private var rescueSignals: RescueSignals? = null
     private var compassListener: SensorEventListener? = null
     private var lastHeadingAt = 0L
@@ -265,6 +277,122 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // Selector de fotos del sistema: no pide permisos (SAF / selector de
+        // Android), y la imagen se achica acá antes de mandarla a Dart.
+        val photoChannel =
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, photoChannelName)
+        photoChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "pick" -> pickPhoto(result)
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    /** Abre el selector de fotos; la respuesta llega a [onActivityResult]. */
+    private fun pickPhoto(result: MethodChannel.Result) {
+        if (pendingPhotoResult != null) {
+            result.error("ocupado", "Ya hay un selector de fotos abierto", null)
+            return
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        pendingPhotoResult = result
+        try {
+            startActivityForResult(intent, photoPickRequestCode)
+        } catch (error: Exception) {
+            pendingPhotoResult = null
+            result.error("sin_selector", "Este teléfono no tiene selector de fotos", null)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != photoPickRequestCode) return
+        val result = pendingPhotoResult ?: return
+        pendingPhotoResult = null
+        val uri = data?.data
+        if (resultCode != Activity.RESULT_OK || uri == null) {
+            result.success(null)
+            return
+        }
+        // Decodificar y comprimir una foto de 12 MP no puede bloquear la UI.
+        Thread {
+            val photo = try {
+                compressPhoto(uri)
+            } catch (error: Exception) {
+                null
+            }
+            runOnUiThread {
+                if (photo == null) {
+                    result.error("foto", "No se pudo leer la imagen", null)
+                } else {
+                    result.success(photo)
+                }
+            }
+        }.start()
+    }
+
+    /**
+     * Deja la foto en un JPEG chico (máx. 480 px de lado, calidad 45) para que
+     * pueda viajar por Bluetooth en trozos de 3 KB. Si aun así pesa demasiado,
+     * baja calidad y tamaño hasta entrar en el tope.
+     */
+    private fun compressPhoto(uri: Uri): Map<String, Any>? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        var maxSide = 480
+        var quality = 45
+        while (true) {
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight, maxSide)
+            }
+            val decoded = contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, options)
+            } ?: return null
+            val scaled = scaleDown(decoded, maxSide)
+            val stream = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, quality, stream)
+            val bytes = stream.toByteArray()
+            if (bytes.size <= MAX_PHOTO_BYTES || (maxSide <= 320 && quality <= 30)) {
+                return mapOf(
+                    "bytes" to bytes,
+                    "width" to scaled.width,
+                    "height" to scaled.height,
+                )
+            }
+            if (quality > 30) {
+                quality = 30
+            } else {
+                maxSide = 320
+            }
+        }
+    }
+
+    private fun sampleSize(width: Int, height: Int, maxSide: Int): Int {
+        var sample = 1
+        while (width / (sample * 2) >= maxSide && height / (sample * 2) >= maxSide) {
+            sample *= 2
+        }
+        return sample
+    }
+
+    private fun scaleDown(source: Bitmap, maxSide: Int): Bitmap {
+        val longest = maxOf(source.width, source.height)
+        if (longest <= maxSide) return source
+        val ratio = maxSide.toFloat() / longest.toFloat()
+        return Bitmap.createScaledBitmap(
+            source,
+            (source.width * ratio).toInt().coerceAtLeast(1),
+            (source.height * ratio).toInt().coerceAtLeast(1),
+            true,
+        )
     }
 
     /** La app ya estaba viva y el usuario tocó otra notificación. */
@@ -312,6 +440,8 @@ class MainActivity : FlutterActivity() {
         rescueSignals = null
         replyPendingPermissions(false)
         replyLocationPermissions(false)
+        pendingPhotoResult?.success(null)
+        pendingPhotoResult = null
         stopLocationUpdates()
         stopCompass()
         super.onDestroy()

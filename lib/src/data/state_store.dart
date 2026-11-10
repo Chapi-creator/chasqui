@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../core/models.dart';
+import '../core/named_channel.dart';
 import '../power/power_policy.dart';
 import '../rescue/light_calibration.dart';
 import '../rescue/morse_log.dart';
@@ -21,10 +22,12 @@ class AppSnapshot {
     required this.outbox,
     required this.radioMode,
     required this.useDemo,
+    this.setupDone = true,
     this.shareLocation = false,
     this.showProximity = false,
     this.relayMode = false,
     this.lightCalibration,
+    this.channels = const <NamedChannel>[],
     this.morseLog = const <MorseLogEntry>[],
   });
 
@@ -39,6 +42,12 @@ class AppSnapshot {
   final RadioMode radioMode;
   final bool useDemo;
 
+  /// Ya pasó por la pantalla de bienvenida y eligió un nombre.
+  ///
+  /// Un estado viejo sin este campo cuenta como terminado si el nombre no es
+  /// el "Yo" por defecto: a esa persona ya no hay que obligarla a nada.
+  final bool setupDone;
+
   /// El usuario aceptó compartir sus coordenadas con sus contactos.
   final bool shareLocation;
 
@@ -50,6 +59,12 @@ class AppSnapshot {
 
   /// Umbrales del receptor de morse medidos en el lugar, si se calibró.
   final LightCalibration? lightCalibration;
+
+  /// Canales con nombre a los que se entró.
+  ///
+  /// Se guarda la contraseña para poder volver a derivar la clave al abrir la
+  /// app: sin ella, el canal quedaría ilegible para su propio dueño.
+  final List<NamedChannel> channels;
 
   /// Mensajes leídos con el receptor de morse, del más nuevo al más viejo.
   final List<MorseLogEntry> morseLog;
@@ -63,10 +78,13 @@ class AppSnapshot {
     'outbox': outbox,
     'mode': radioMode.name,
     'demo': useDemo,
+    'setup': setupDone,
     'shareLocation': shareLocation,
     'showProximity': showProximity,
     'relayMode': relayMode,
     if (lightCalibration != null) 'lightCal': lightCalibration!.toJson(),
+    if (channels.isNotEmpty)
+      'channels': channels.map((channel) => channel.toJson()).toList(),
     if (morseLog.isNotEmpty)
       'morse': morseLog.map((entry) => entry.toJson()).toList(),
   };
@@ -83,12 +101,22 @@ class AppSnapshot {
     outbox: _decodeOutbox(json['outbox']),
     radioMode: RadioMode.fromName(json['mode'] as String?),
     useDemo: json['demo'] as bool? ?? false,
+    setupDone:
+        json['setup'] as bool? ??
+        (json['name'] as String? ?? 'Yo').trim() != 'Yo',
     shareLocation: json['shareLocation'] as bool? ?? false,
     showProximity: json['showProximity'] as bool? ?? false,
     relayMode: json['relayMode'] as bool? ?? false,
     lightCalibration: LightCalibration.fromJson(json['lightCal']),
+    channels: _decodeChannels(json['channels']),
     morseLog: _decodeMorseLog(json['morse']),
   );
+
+  /// Un canal con forma rara se descarta solo; el resto del estado se carga.
+  static List<NamedChannel> _decodeChannels(Object? raw) {
+    if (raw is! List) return const <NamedChannel>[];
+    return raw.map(NamedChannel.fromJson).whereType<NamedChannel>().toList();
+  }
 
   /// El historial no puede romper la carga entera: si el campo viene con otra
   /// forma (estado escrito por una versión distinta o archivo tocado), se

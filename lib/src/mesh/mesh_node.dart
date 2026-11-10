@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 
 import '../core/board.dart';
@@ -11,6 +12,9 @@ import '../core/frame.dart';
 import '../core/geo.dart';
 import '../core/identity.dart';
 import '../core/models.dart';
+import '../core/named_channel.dart';
+import '../core/photo.dart';
+import '../data/photo_store.dart';
 import '../data/state_store.dart';
 import '../power/power_policy.dart';
 import '../power/radio_scheduler.dart';
@@ -38,7 +42,12 @@ class MeshNode extends ChangeNotifier {
     bool relayMode = false,
     LightCalibration? lightCalibration,
     List<MorseLogEntry> morseLog = const <MorseLogEntry>[],
+    bool setupDone = true,
+    List<NamedChannel> channels = const <NamedChannel>[],
+    PhotoStore? photoStore,
   }) : _transport = transport,
+       _photoStore = photoStore ?? PhotoStore(),
+       _setupDone = setupDone,
        _displayName = displayName,
        _radioMode = mode,
        _useDemo = useDemo,
@@ -54,7 +63,11 @@ class MeshNode extends ChangeNotifier {
       onPresence: _handlePresence,
       onLocation: _handleLocation,
       onChannel: _handleChannel,
+      onNamedChannel: _handleNamedChannel,
+      resolveNamedChannelKey: _namedChannelKey,
+      onPhoto: _handlePhoto,
     );
+    _channels.addAll(channels);
     _scheduler = RadioScheduler(
       onScanGate: (enabled) => _transport.setDiscoveryEnabled(enabled),
       enableBatteryMonitor: monitorBattery,
@@ -73,6 +86,7 @@ class MeshNode extends ChangeNotifier {
 
   final NodeIdentity identity;
   final StateStore store;
+  final PhotoStore _photoStore;
 
   late final MeshRouter _router;
   late final RadioScheduler _scheduler;
@@ -94,7 +108,9 @@ class MeshNode extends ChangeNotifier {
   bool _shareLocation;
   bool _showProximity;
   bool _relayMode;
+  bool _setupDone;
   LightCalibration? _lightCalibration;
+  final List<NamedChannel> _channels = <NamedChannel>[];
   final List<MorseLogEntry> _morseLog = <MorseLogEntry>[];
   GeoPoint? _myLocation;
   Timer? _retryTimer;
@@ -146,6 +162,9 @@ class MeshNode extends ChangeNotifier {
   RadioMode get radioMode => _radioMode;
   bool get usingDemo => _useDemo;
   bool get running => _started;
+
+  /// Falta pasar por la bienvenida y elegir nombre (instalación nueva).
+  bool get needsSetup => !_setupDone;
 
   /// ¿Se comparten las coordenadas con los contactos?
   bool get shareLocation => _shareLocation;
@@ -476,6 +495,21 @@ class MeshNode extends ChangeNotifier {
     }
   }
 
+  /// Cierra la bienvenida con el nombre elegido.
+  ///
+  /// Va aparte de [setDisplayName] para que la app sepa que no es solo un
+  /// cambio de nombre en Ajustes, sino la primera vez y que hay que dejar de
+  /// mostrar la pantalla de inicio.
+  Future<void> completeSetup(String name) async {
+    final clean = ContactInvite.clampName(name);
+    if (clean.isEmpty) return;
+    _displayName = clean;
+    _setupDone = true;
+    _notify();
+    await _announceToAllLinks();
+    await _persistNow();
+  }
+
   void setDisplayName(String name) {
     // Se recorta igual que el anuncio de presencia: si no, tú verías un nombre
     // de 60 caracteres y los demás recibirían otro distinto.
@@ -571,6 +605,179 @@ class MeshNode extends ChangeNotifier {
     if (enabled) await _announceToAllLinks();
   }
 
+  /// Canales con nombre a los que se entró desde este teléfono.
+  List<NamedChannel> get channels => UnmodifiableListView(_channels);
+
+  NamedChannel? channelById(String id) {
+    for (final channel in _channels) {
+      if (channel.id == id) return channel;
+    }
+    return null;
+  }
+
+  NamedChannel? channelByPeerId(String peerId) {
+    for (final channel in _channels) {
+      if (channel.peerId == peerId) return channel;
+    }
+    return null;
+  }
+
+  /// Clave de un canal propio, para que el enrutador pueda descifrarlo.
+  Future<SecretKey?> _namedChannelKey(String channelId) async {
+    final channel = channelById(channelId);
+    return channel?.key();
+  }
+
+  /// Crea un canal con nombre, o entra al que ya existe con ese nombre.
+  ///
+  /// Devuelve null si el nombre no sirve. Si ya estabas adentro, devuelve el
+  /// mismo canal: entrar dos veces no duplica nada.
+  Future<NamedChannel?> joinChannel({
+    required String name,
+    String? passphrase,
+  }) async {
+    if (!NamedChannel.isValidName(name) ||
+        !NamedChannel.isValidPassphrase(passphrase)) {
+      return null;
+    }
+    final channel = await NamedChannel.create(
+      name: name,
+      passphrase: passphrase,
+      createdByMe: true,
+    );
+    final existing = channelById(channel.id);
+    if (existing != null) return existing;
+    // Mismos teléfonos pueden haber creado el mismo nombre por separado: el
+    // primero en la lista conserva la fecha y el texto que se ve en la UI.
+    _channels.add(channel);
+    _notify();
+    await _persistNow();
+    return channel;
+  }
+
+  /// Sale del canal y borra de este teléfono su historial.
+  Future<void> leaveChannel(String id) async {
+    _channels.removeWhere((channel) => channel.id == id);
+    _messages.removeWhere((message) => message.peerId == 'canal:$id');
+    _notify();
+    await _persistNow();
+  }
+
+  /// Bytes de una foto guardada, para mostrarla. Se cachea en memoria: el
+  /// lista de mensajes reconstruye la burbuja en cada scroll y leer el archivo
+  /// cada vez daría tirones.
+  final Map<String, Uint8List> _photoCache = <String, Uint8List>{};
+
+  /// Claves de las tramas de cada foto que salió, para retirarlas de la cola
+  /// cuando llega la confirmación.
+  ///
+  /// Sin esto, la foto se confirmaba pero sus 14 trozos seguían en la cola
+  /// reenviándose hasta 24 h: gastaba radio para algo que ya había llegado.
+  final Map<String, List<String>> _photoFrameKeys = <String, List<String>>{};
+
+  Future<Uint8List?> photoBytes(String? name) async {
+    if (name == null) return null;
+    final cached = _photoCache[name];
+    if (cached != null) return cached;
+    final bytes = await _photoStore.load(name);
+    if (bytes == null) return null;
+    if (_photoCache.length >= 24) _photoCache.remove(_photoCache.keys.first);
+    _photoCache[name] = bytes;
+    return bytes;
+  }
+
+  /// Manda una foto ya comprimida a un contacto.
+  ///
+  /// La foto se parte en trozos de 3 KB, cada uno una trama cifrada con la
+  /// clave del contacto. Si no hay enlaces, todo queda en cola y sale cuando
+  /// aparezca: una foto de una persona desaparecida sirve mañana.
+  Future<bool> sendPhoto(String peerId, Uint8List jpeg) async {
+    final target = _router.peers[peerId];
+    if (target == null) return false;
+    if (jpeg.isEmpty || jpeg.length > PhotoChunker.maxPhotoBytes) return false;
+
+    final pid = randomBytes(16);
+    final pidHex = toHex(pid);
+    final name = await _photoStore.save(jpeg, idHex: pidHex);
+    if (name != null) _photoCache[name] = jpeg;
+    _appendMessage(
+      ChatMessage(
+        id: pidHex,
+        peerId: peerId,
+        outgoing: true,
+        text: 'Foto',
+        timestamp: DateTime.now(),
+        status: MessageStatus.queued,
+        kind: MessageKind.photo,
+        photo: name,
+      ),
+    );
+    _notify();
+
+    final parts = PhotoChunker.split(pid, jpeg);
+    final keys = <String>[];
+    for (final part in parts) {
+      final frame = await _router.buildPhotoFrame(peer: target, part: part);
+      keys.add(frame.dedupKey);
+      _router.outbox.enqueueOwn(frame);
+      await _broadcast(frame);
+    }
+    _photoFrameKeys[pidHex] = keys;
+    if (_transport.connectedLinks > 0) {
+      _markStatus(pidHex, MessageStatus.sent);
+    }
+    _notify();
+    _scheduleSave();
+    return true;
+  }
+
+  void _handlePhoto(PeerRecord from, String pidHex, Uint8List bytes) {
+    final now = DateTime.now();
+    _appendMessage(
+      ChatMessage(
+        id: pidHex,
+        peerId: from.id,
+        outgoing: false,
+        text: 'Foto',
+        timestamp: now,
+        status: MessageStatus.delivered,
+        hops: 0,
+        kind: MessageKind.photo,
+        senderName: from.name,
+      ),
+    );
+    _notify();
+    // El archivo se escribe sin bloquear la recepción: la burbuja aparece con
+    // un hueco y la imagen entra en cuanto esté.
+    unawaited(() async {
+      final name = await _photoStore.save(bytes, idHex: pidHex);
+      if (name == null) return;
+      _photoCache[name] = bytes;
+      for (final message in _messages) {
+        if (message.id == pidHex && message.kind == MessageKind.photo) {
+          // ChatMessage.photo es final: se reemplaza la entrada con una copia
+          // que ya tiene el archivo, conservando id, hora y estado.
+          final index = _messages.indexOf(message);
+          _messages[index] = ChatMessage(
+            id: message.id,
+            peerId: message.peerId,
+            outgoing: message.outgoing,
+            text: message.text,
+            timestamp: message.timestamp,
+            status: message.status,
+            hops: message.hops,
+            kind: message.kind,
+            senderName: message.senderName,
+            photo: name,
+          );
+          break;
+        }
+      }
+      _notify();
+      _scheduleSave();
+    }());
+  }
+
   /// Conversación del canal abierto. No hay contacto: es "todos".
   List<ChatMessage> get channelMessages => messagesFor(channelId);
 
@@ -585,6 +792,42 @@ class MeshNode extends ChangeNotifier {
   /// Aviso para cualquiera que esté en la malla.
   Future<void> sendChannelMessage(String text) =>
       _sendChannel(text, ChannelKind.message);
+
+  /// Mensaje dentro de un canal con nombre.
+  ///
+  /// Viaja a difusión y cifrado con la clave del canal: solo lo entienden
+  /// quienes entraron. Se guarda en cola porque el propósito del canal es
+  /// organizarse con gente que puede no estar al alcance todavía.
+  Future<void> sendNamedChannelMessage(
+    NamedChannel channel,
+    String text,
+  ) async {
+    final clean = clampUtf8Bytes(text.trim(), ChannelMessage.maxTextBytes);
+    if (clean.isEmpty) return;
+    final message = ChannelMessage(name: _displayName, text: clean);
+    final frame = await _router.buildNamedChannelFrame(
+      channel: channel,
+      key: await channel.key(),
+      message: message,
+    );
+    _appendMessage(
+      ChatMessage(
+        id: frame.idHex,
+        peerId: channel.peerId,
+        outgoing: true,
+        text: clean,
+        timestamp: DateTime.now(),
+        status: _transport.connectedLinks > 0
+            ? MessageStatus.sent
+            : MessageStatus.queued,
+        senderName: _displayName,
+      ),
+    );
+    _router.outbox.enqueueChannel(frame);
+    await _broadcast(frame);
+    _notify();
+    _scheduleSave();
+  }
 
   /// Publica un aviso en el tablero de emergencia.
   ///
@@ -720,6 +963,48 @@ class MeshNode extends ChangeNotifier {
     _scheduleSave();
   }
 
+  void _handleNamedChannel(
+    String channelId,
+    String sourceId,
+    ChannelMessage message,
+    int hops,
+  ) {
+    final channel = channelById(channelId);
+    if (channel == null) return;
+    final peer = _router.peers[sourceId];
+    if (peer != null) peer.lastSeen = DateTime.now();
+    final name = message.name.isNotEmpty
+        ? message.name
+        : (peer?.name ?? 'Nodo ${shortId(sourceId)}');
+    _appendMessage(
+      ChatMessage(
+        id: '${DateTime.now().microsecondsSinceEpoch}-canal-$channelId',
+        peerId: channel.peerId,
+        outgoing: false,
+        text: message.text,
+        timestamp: DateTime.now(),
+        status: MessageStatus.delivered,
+        hops: hops,
+        kind: _kindOf(message.kind),
+        senderName: name,
+      ),
+    );
+    // Un SOS en un canal con nombre sí interrumpe: es lo único que no puede
+    // esperar a que el usuario abra la pantalla.
+    if (message.kind == ChannelKind.sos) {
+      _channelAlerts.add(
+        ChannelAlert(
+          name: name,
+          text: '${message.text} · ${channel.name}',
+          kind: message.kind,
+          hops: hops,
+        ),
+      );
+    }
+    _notify();
+    _scheduleSave();
+  }
+
   /// Reenvía la posición actual a los contactos que estén al alcance.
   Future<void> shareLocationNow() async {
     final point = _myLocation;
@@ -822,6 +1107,9 @@ class MeshNode extends ChangeNotifier {
     _showProximity = snapshot.showProximity;
     _relayMode = snapshot.relayMode;
     _lightCalibration = snapshot.lightCalibration;
+    _channels
+      ..clear()
+      ..addAll(snapshot.channels);
     _morseLog
       ..clear()
       ..addAll(snapshot.morseLog.take(morseLogLimit));
@@ -1000,6 +1288,13 @@ class MeshNode extends ChangeNotifier {
   void _handleAck(String frameKey, String fromPeerId) {
     final frameId = frameKey.split(':').last;
     _markStatus(frameId, MessageStatus.delivered);
+    // Foto entregada: sus trozos ya no hay que repetirlos.
+    final photoKeys = _photoFrameKeys.remove(frameId);
+    if (photoKeys != null) {
+      for (final key in photoKeys) {
+        _router.outbox.remove(key);
+      }
+    }
     _notify();
     _scheduleSave();
   }
@@ -1073,10 +1368,12 @@ class MeshNode extends ChangeNotifier {
       outbox: _router.outbox.encode(),
       radioMode: _radioMode,
       useDemo: _useDemo,
+      setupDone: _setupDone,
       shareLocation: _shareLocation,
       showProximity: _showProximity,
       relayMode: _relayMode,
       lightCalibration: _lightCalibration,
+      channels: List<NamedChannel>.from(_channels),
       morseLog: List<MorseLogEntry>.from(_morseLog),
     ),
   );
@@ -1102,6 +1399,7 @@ class MeshNode extends ChangeNotifier {
       store: store,
       transport: transport,
       displayName: snapshot?.displayName ?? 'Yo',
+      setupDone: snapshot?.setupDone ?? false,
       mode: snapshot?.radioMode ?? RadioMode.equilibrado,
       monitorBattery: monitorBattery,
       useDemo: useDemo,
@@ -1109,6 +1407,7 @@ class MeshNode extends ChangeNotifier {
       showProximity: snapshot?.showProximity ?? false,
       relayMode: snapshot?.relayMode ?? false,
       lightCalibration: snapshot?.lightCalibration,
+      channels: snapshot?.channels ?? const <NamedChannel>[],
       morseLog: snapshot?.morseLog ?? const <MorseLogEntry>[],
     );
     if (snapshot != null) node.restore(snapshot);

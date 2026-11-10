@@ -11,6 +11,8 @@ import '../core/frame.dart';
 import '../core/geo.dart';
 import '../core/identity.dart';
 import '../core/models.dart';
+import '../core/named_channel.dart';
+import '../core/photo.dart';
 import 'dedup_cache.dart';
 import 'outbox.dart';
 
@@ -24,6 +26,22 @@ typedef LocationReceived =
     void Function(PeerRecord from, GeoPoint point, int hops);
 typedef ChannelReceived =
     void Function(String sourceId, ChannelMessage message, int hops);
+typedef NamedChannelReceived =
+    void Function(
+      String channelIdHex,
+      String sourceId,
+      ChannelMessage message,
+      int hops,
+    );
+
+/// Busca la clave de un canal con nombre. Devuelve null si no es un canal de
+/// este teléfono; en ese caso la trama ni se descifra ni se repite.
+typedef NamedChannelKeyResolver =
+    Future<SecretKey?> Function(String channelIdHex);
+typedef PhotoReceived =
+    void Function(PeerRecord from, String pidHex, Uint8List bytes);
+typedef PhotoProgress =
+    void Function(PeerRecord from, String pidHex, int missing);
 
 /// Lógica de red pura (sin Bluetooth): decide qué hacer con cada trama.
 ///
@@ -40,6 +58,10 @@ class MeshRouter {
     this.onPresence,
     this.onLocation,
     this.onChannel,
+    this.onNamedChannel,
+    this.resolveNamedChannelKey,
+    this.onPhoto,
+    this.onPhotoProgress,
     this.maxPeers = 500,
     DedupCache? dedup,
     Outbox? outbox,
@@ -53,6 +75,13 @@ class MeshRouter {
   final PresenceReceived? onPresence;
   final LocationReceived? onLocation;
   final ChannelReceived? onChannel;
+  final NamedChannelReceived? onNamedChannel;
+  final NamedChannelKeyResolver? resolveNamedChannelKey;
+  final PhotoReceived? onPhoto;
+  final PhotoProgress? onPhotoProgress;
+
+  /// Trozos de fotos que se están armando, por emisor.
+  final PhotoAssembler photos = PhotoAssembler();
 
   /// Tramas de otros que este nodo reenvió (lo que la UI llama "repetidor").
   int relayed = 0;
@@ -181,6 +210,85 @@ class MeshRouter {
     );
   }
 
+  /// Mensaje de un canal con nombre.
+  ///
+  /// El payload lleva el id del canal (8 bytes) y el contenido cifrado con la
+  /// clave derivada del nombre. El id va también en lo autenticado: sin eso,
+  /// alguien podría cambiar la etiqueta del canal y hacer que el receptor
+  /// busque otra clave.
+  Future<MeshFrame> buildNamedChannelFrame({
+    required NamedChannel channel,
+    required SecretKey key,
+    required ChannelMessage message,
+  }) async {
+    final id = randomBytes(16);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final channelId = channel.idBytes;
+    final skeleton = MeshFrame(
+      type: FrameType.channelNamed,
+      id: id,
+      source: Uint8List.fromList(identity.nodeId),
+      destination: MeshFrame.broadcastId,
+      timestamp: now,
+      payload: Uint8List(0),
+      ttl: channelTtl,
+    );
+    final sealed = await ChannelCrypto.seal(
+      plaintext: message.encode(),
+      aad: concatBytes([skeleton.authenticatedHeader(), channelId]),
+      key: key,
+    );
+    final payload = Uint8List(8 + sealed.length);
+    payload.setRange(0, 8, channelId);
+    payload.setRange(8, payload.length, sealed);
+    return MeshFrame(
+      type: FrameType.channelNamed,
+      id: id,
+      source: skeleton.source,
+      destination: skeleton.destination,
+      timestamp: now,
+      payload: payload,
+      ttl: channelTtl,
+    );
+  }
+
+  /// Trozo de foto cifrado para un contacto.
+  ///
+  /// Cada trozo es una trama independiente: tiene su propio id, su propia
+  /// deduplicación y se reenvía solo si llega completo. Un enlace que se corta
+  /// a mitad de la foto no tira lo que ya llegó.
+  Future<MeshFrame> buildPhotoFrame({
+    required PeerRecord peer,
+    required PhotoPart part,
+  }) async {
+    final id = randomBytes(16);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final skeleton = MeshFrame(
+      type: FrameType.photo,
+      id: id,
+      source: Uint8List.fromList(identity.nodeId),
+      destination: Uint8List.fromList(fromHex(peer.id)),
+      timestamp: now,
+      payload: Uint8List(0),
+      ttl: defaultTtl,
+    );
+    final sealed = await MeshCrypto.seal(
+      me: identity,
+      peer: publicKeyOf(peer),
+      plaintext: PhotoChunker.encode(part),
+      aad: skeleton.authenticatedHeader(),
+    );
+    return MeshFrame(
+      type: FrameType.photo,
+      id: id,
+      source: skeleton.source,
+      destination: skeleton.destination,
+      timestamp: now,
+      payload: sealed,
+      ttl: defaultTtl,
+    );
+  }
+
   MeshFrame buildAckFrame(MeshFrame original) => MeshFrame(
     type: FrameType.ack,
     id: randomBytes(16),
@@ -231,6 +339,109 @@ class MeshRouter {
         await _handleLocation(frame, linkId);
       case FrameType.channel:
         await _handleChannel(frame, linkId);
+      case FrameType.channelNamed:
+        await _handleNamedChannel(frame, linkId);
+      case FrameType.photo:
+        await _handlePhoto(frame, linkId);
+    }
+  }
+
+  /// Trozo de foto. Se descifra solo si es para este nodo; si no, se reenvía
+  /// como cualquier mensaje privado.
+  Future<void> _handlePhoto(MeshFrame frame, String? linkId) async {
+    if (frame.destinationHex == identity.id) {
+      final peer = peers[frame.sourceHex];
+      if (peer == null) return;
+      try {
+        final clear = await MeshCrypto.open(
+          me: identity,
+          peer: publicKeyOf(peer),
+          sealed: frame.payload,
+          aad: frame.authenticatedHeader(),
+        );
+        final part = PhotoChunker.parse(clear);
+        if (part == null) {
+          debugPrint('Malla: trozo de foto inválido');
+          return;
+        }
+        final photo = photos.add(peer.id, part);
+        if (photo == null) {
+          onPhotoProgress?.call(
+            peer,
+            part.pidHex,
+            photos.missing(peer.id, part.pidHex) ?? 0,
+          );
+          return;
+        }
+        peer.lastSeen = DateTime.now();
+        onPhoto?.call(peer, photo.pidHex, photo.bytes);
+        // Se confirma la foto entera, no cada trozo: el emisor marca la
+        // burbuja como entregada solo cuando la imagen se pudo armar.
+        await broadcast(
+          MeshFrame(
+            type: FrameType.ack,
+            id: randomBytes(16),
+            source: Uint8List.fromList(identity.nodeId),
+            destination: Uint8List.fromList(fromHex(peer.id)),
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            payload: Uint8List.fromList(fromHex(photo.pidHex)),
+            ttl: defaultTtl,
+          ),
+        );
+      } catch (error) {
+        debugPrint('Malla: no se pudo descifrar la foto (${error.runtimeType})');
+      }
+      return;
+    }
+
+    if (frame.ttl > 1) {
+      relayed += 1;
+      outbox.enqueueRelay(frame.forwarded());
+      await broadcast(frame.forwarded(), exceptLink: linkId);
+    } else {
+      outbox.enqueueRelay(frame);
+    }
+  }
+
+  /// Canal con nombre: solo se descifra y se repite si es un canal de este
+  /// teléfono. Un nodo que no está en el canal no puede verificarlo, así que
+  /// no lo repite: no tiene sentido inundar la malla con algo que nadie de
+  /// alrededor puede leer.
+  Future<void> _handleNamedChannel(MeshFrame frame, String? linkId) async {
+    if (frame.payload.length < 8 + ChannelCrypto.nonceLength + ChannelCrypto.macLength + 1) {
+      return;
+    }
+    final channelId = frame.payload.sublist(0, 8);
+    final channelIdHex = toHex(channelId);
+    final key = await resolveNamedChannelKey?.call(channelIdHex);
+    if (key == null) return;
+
+    var readable = false;
+    try {
+      final clear = await ChannelCrypto.open(
+        sealed: frame.payload.sublist(8),
+        aad: concatBytes([frame.authenticatedHeader(), channelId]),
+        key: key,
+      );
+      final message = ChannelMessage.decode(clear);
+      if (message == null) {
+        debugPrint('Malla: mensaje de canal ilegible');
+      } else {
+        readable = true;
+        onNamedChannel?.call(channelIdHex, frame.sourceHex, message, frame.hops);
+      }
+    } catch (error) {
+      debugPrint('Malla: canal con nombre no se pudo descifrar (${error.runtimeType})');
+    }
+
+    if (!readable) return;
+
+    if (frame.ttl > 1) {
+      relayed += 1;
+      outbox.enqueueRelay(frame.forwarded());
+      await broadcast(frame.forwarded(), exceptLink: linkId);
+    } else {
+      outbox.enqueueRelay(frame);
     }
   }
 

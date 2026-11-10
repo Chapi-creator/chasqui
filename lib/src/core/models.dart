@@ -26,6 +26,9 @@ enum MessageKind {
   /// Publicación del tablero de emergencia (necesito, ofrezco, desaparecidos,
   /// peligro): lleva categoría y caducidad.
   board,
+
+  /// Foto comprimida que llegó o salió por la malla.
+  photo,
 }
 
 class ChatMessage {
@@ -42,6 +45,7 @@ class ChatMessage {
     this.senderName,
     this.board,
     this.expiresAt,
+    this.photo,
   });
 
   final String id;
@@ -72,6 +76,12 @@ class ChatMessage {
   /// que seguir ocultando avisos viejos después de reiniciar la app.
   final DateTime? expiresAt;
 
+  /// Nombre del archivo de la foto, dentro de la carpeta de fotos.
+  ///
+  /// El estado guarda el nombre y no los bytes: un estado con decenas de fotos
+  /// en base64 se reescribiría entero cada 2 segundos y trabaría la app.
+  final String? photo;
+
   ChatMessage copyWith({MessageStatus? status, int? hops}) => ChatMessage(
     id: id,
     peerId: peerId,
@@ -85,6 +95,7 @@ class ChatMessage {
     senderName: senderName,
     board: board,
     expiresAt: expiresAt,
+    photo: photo,
   );
 
   Map<String, dynamic> toJson() => {
@@ -100,6 +111,7 @@ class ChatMessage {
     if (senderName != null) 'from': senderName,
     if (board != null) 'cat': board!.code,
     if (expiresAt != null) 'exp': expiresAt!.millisecondsSinceEpoch,
+    if (photo != null) 'img': photo,
   };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -123,6 +135,7 @@ class ChatMessage {
     expiresAt: json['exp'] == null
         ? null
         : DateTime.fromMillisecondsSinceEpoch((json['exp'] as num).toInt()),
+    photo: json['img'] as String?,
   );
 }
 
