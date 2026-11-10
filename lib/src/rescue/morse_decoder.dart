@@ -172,18 +172,24 @@ class MorseDecoder {
     );
   }
 
-  /// Une marcas separadas por una pausa imposible (menos de media unidad): es
-  /// un parpadeo de la cámara dentro de la misma raya, no dos símbolos. El
-  /// corte deja margen: aun con un 30 % de temblor, una pausa real entre
-  /// elementos mide 0,7 unidades y no se toca.
+  /// Pausa demasiado corta para ser un símbolo: un parpadeo de la cámara
+  /// dentro de la misma raya, que si no se descarta parte la raya en dos.
+  ///
+  /// El corte no puede ser solo "media unidad": a ritmo rápido (120 ms) una
+  /// pausa real mide 120 ms, pero si la exposición automática tarda en seguir
+  /// al apagado el receptor la mide bastante más corta, y con el corte en media
+  /// unidad los dos puntos de una letra se pegaban en una raya (L se leía M).
+  /// Por eso hay un segundo límite en milisegundos: un parpadeo de cámara dura
+  /// un fotograma (40 ms a 25 por segundo), una pausa de verdad no baja de 45.
   List<_Event> _condense(List<_Event> base, int unit) {
     final out = <_Event>[];
+    final tooShort = math.min(unit * 0.5, 45.0);
     for (final event in base) {
       if (event.on) {
         out.add(event);
         continue;
       }
-      if (out.isNotEmpty && out.last.on && event.ms < unit * 0.5) {
+      if (out.isNotEmpty && out.last.on && event.ms < tooShort) {
         // Se descarta la pausa: la próxima marca se suma a la anterior.
         continue;
       }

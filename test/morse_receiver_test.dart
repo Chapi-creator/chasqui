@@ -278,16 +278,28 @@ void main() {
     });
 
     test('un hueco de un fotograma dentro de una raya no la corta', () {
+      // Raya de 600 ms con un solo fotograma oscuro a la mitad, pausa de
+      // letra y un punto: así se sabe el ritmo y no hay ambigüedad.
       final values = <double>[];
-      // 600 ms de luz con un solo fotograma oscuro a la mitad.
       for (var i = 0; i < 24; i++) {
-        values.add(i == 12 ? 0.05 : 0.9);
+        values.add(i == 12 ? 0.05 : 0.9); // 600 ms de luz, parpadeo en 300
       }
-      values.addAll(List.filled(20, 0.05));
-      final transitions = run(values);
-      expect(transitions.first.on, isTrue);
-      expect(transitions.first.ms, inInclusiveRange(550, 650));
-      expect(transitions.length, lessThanOrEqualTo(3));
+      values.addAll(List.filled(24, 0.05)); // 600 ms de pausa de letra
+      values.addAll(List.filled(8, 0.9)); // 200 ms de luz: un punto
+      values.addAll(List.filled(40, 0.05));
+
+      final sampler = LightSampler();
+      final decoder = MorseDecoder();
+      for (var i = 0; i < values.length; i++) {
+        final change = sampler.addSample(values[i], i * 25);
+        if (change == null) continue;
+        change.on ? decoder.mark(change.ms) : decoder.gap(change.ms);
+      }
+      decoder.closeLetter();
+
+      // El parpadeo puede partir la raya en dos marcas, pero sin pausa en el
+      // medio el decodificador las vuelve a unir: sigue siendo una raya.
+      expect(decoder.reading.text, 'TE');
     });
 
     test('sin contraste avisa que no hay señal', () {
@@ -449,19 +461,21 @@ void main() {
       sampler.addSample(0.42, 33);
       expect(sampler.isOn, isFalse);
 
-      // 0.5 enciende: se confirma en el fotograma siguiente y lo que se
-      // reporta es el tramo apagado que termina, con su duración completa.
-      expect(sampler.addSample(0.5, 66), isNull);
-      final off = sampler.addSample(0.5, 99);
+      // 0.5 enciende en ese mismo fotograma: desde la 1.0.0 un cambio se
+      // acepta en cuanto cruza el umbral, sin esperar al siguiente. Lo que se
+      // reporta es el tramo apagado que termina.
+      final off = sampler.addSample(0.5, 66);
       expect(off?.on, isFalse);
-      expect(off?.ms, 66);
+      expect(off?.ms, inInclusiveRange(40, 70));
 
       // Y 0.3, por debajo del umbral de apagado, cierra el tramo de luz.
-      sampler.addSample(0.3, 132);
-      final on = sampler.addSample(0.3, 165);
+      final on = sampler.addSample(0.3, 132);
       expect(on?.on, isTrue);
-      // La luz duró de 66 a 132: el tramo se mide desde que empezó el cambio.
-      expect(on?.ms, 66);
+      // La luz duró de 66 a 132, pero el borde se interpola entre los dos
+      // fotogramas que cruzan el umbral, así que la medida queda algo antes
+      // de 66. Con el fotograma entero como borde, a 10 por segundo el error
+      // llegaba a 100 ms por tramo.
+      expect(on?.ms, inInclusiveRange(40, 70));
     });
 
     test('una calibración sin diferencia se ignora', () {

@@ -19,10 +19,20 @@ class LightTransition {
 /// segundos, con dos umbrales distintos (histéresis) para que un parpadeo de
 /// ruido no cuente como un punto.
 ///
-/// Un cambio de estado no se acepta por un solo fotograma: tiene que sostenerse
-/// [minSegmentMs]. Sin esa espera, un parpadeo de la exposición corta una raya
-/// en dos y el mensaje sale sin sentido. La duración se mide desde que el
-/// cambio empezó, no desde que se confirmó, así el temblor no acorta el tramo.
+/// Un cambio de estado se acepta en cuanto el brillo cae del lado claro de la
+/// zona muerta. Antes se exigían dos fotogramas seguidos, y eso funciona a 30
+/// por segundo pero no a 10 o 15: una pausa de 120 ms entre dos puntos podía
+/// caer entera entre dos fotogramas, no se reportaba, y los puntos se fundían
+/// en una raya (L se leía como M, la S final como T).
+///
+/// Lo que filtra el ruido es la zona muerta entre los dos umbrales y la
+/// [minSegmentMs]: un parpadeo de exposición de un fotograma queda por debajo
+/// del mínimo y no se reporta como símbolo.
+///
+/// La duración no se cuenta de fotograma a fotograma: el instante del cambio se
+/// interpola entre las dos muestras que lo cruzan. A 10 por segundo eso quita
+/// hasta 100 ms de error por tramo, que es lo que hacía que un punto midiera
+/// como raya.
 class LightSampler {
   LightSampler({
     this.minSegmentMs = 45,
@@ -59,11 +69,10 @@ class LightSampler {
   bool _started = false;
   int _sinceMs = 0;
 
-  /// Estado que se está esperando confirmar, desde cuándo y en cuántos
-  /// fotogramas seguidos se vio.
-  bool? _candidate;
-  int _candidateSinceMs = 0;
-  int _candidateSamples = 0;
+  /// Última muestra, para interpolar el instante exacto del cruce.
+  double _prevValue = 0;
+  int _prevMs = 0;
+  bool _hasPrev = false;
 
   /// Última diferencia entre lo más oscuro y lo más claro de la ventana.
   double _contrast = 0;
@@ -92,9 +101,9 @@ class LightSampler {
     _on = false;
     _started = false;
     _sinceMs = 0;
-    _candidate = null;
-    _candidateSinceMs = 0;
-    _candidateSamples = 0;
+    _prevValue = 0;
+    _prevMs = 0;
+    _hasPrev = false;
     _contrast = 0;
   }
 
@@ -140,27 +149,31 @@ class LightSampler {
 
     final wanted = _on ? value > turnOff : value > turnOn;
     if (wanted == _on) {
-      // Volvió al estado de antes: era un temblor de un fotograma.
-      _candidate = null;
-      _candidateSamples = 0;
+      _remember(value, timeMs);
       return null;
     }
 
-    // El cambio recién empieza: se anota cuándo, sin tocar el tramo en curso.
-    if (_candidate != wanted) {
-      _candidate = wanted;
-      _candidateSinceMs = timeMs;
-      _candidateSamples = 1;
-      return null;
-    }
+    // El cambio se acepta en el primer fotograma que cruza el umbral. Con una
+    // pausa de 120 ms a 15 fotogramas por segundo puede haber **un solo**
+    // fotograma apagado; pedir dos lo borraba y pegaba los dos puntos en una
+    // raya. La zona muerta entre los dos umbrales y la duración mínima ya
+    // filtran el temblor.
 
-    // Un cambio se cree recién cuando se repite en el fotograma siguiente. Con
-    // una espera en milisegundos, un punto rápido podía terminar antes de que
-    // el cambio se confirmara y el punto desaparecía del mensaje.
-    _candidateSamples++;
-    if (_candidateSamples < 2) return null;
-
-    final duration = _candidateSinceMs - _sinceMs;
+    // El borde se interpola entre la muestra anterior y esta: a 10 fotogramas
+    // por segundo, tomar el fotograma entero como borde inventa hasta 100 ms.
+    //
+    // Se interpola en la mitad del rango, no en el umbral de conexión: la
+    // exposición automática tarda unos milisegundos en seguir al cambio, y
+    // cruzar el umbral de apagado (40 % del rango) pasa más tarde que el cambio
+    // real. Medido en la mitad, todos los bordes se retrasan parecido y las
+    // pausas no se acortan de más (era lo que dejaba las pausas en media
+    // unidad y pegaba dos puntos en una raya).
+    final edge = _crossing(
+      threshold: low + (high - low) * 0.5,
+      ms: timeMs,
+      value: value,
+    );
+    final duration = edge - _sinceMs;
     // El tramo que termina fue un temblor, no un símbolo: no se reporta, pero
     // el reloj avanza igual. Si no avanzara, el cambio se reintentaría para
     // siempre y el receptor se quedaría trabado.
@@ -168,10 +181,30 @@ class LightSampler {
         ? LightTransition(on: _on, ms: duration)
         : null;
     _on = wanted;
-    _sinceMs = _candidateSinceMs;
-    _candidate = null;
-    _candidateSamples = 0;
+    _sinceMs = edge;
+    _remember(value, timeMs);
     return ended;
+  }
+
+  void _remember(double value, int timeMs) {
+    _prevValue = value;
+    _prevMs = timeMs;
+    _hasPrev = true;
+  }
+
+  /// Instante en que el brillo cruzó [threshold], interpolado entre las dos
+  /// muestras que lo rodean. Si la muestra anterior ya estaba del otro lado
+  /// (el cambio se confirmó con retraso), el borde es el fotograma anterior.
+  int _crossing({
+    required double threshold,
+    required int ms,
+    required double value,
+  }) {
+    if (!_hasPrev || _prevMs >= ms) return ms;
+    final span = value - _prevValue;
+    if (span.abs() < 1e-6) return ms;
+    final ratio = ((threshold - _prevValue) / span).clamp(0.0, 1.0);
+    return _prevMs + (ratio * (ms - _prevMs)).round();
   }
 }
 

@@ -303,7 +303,7 @@ en `build/app/outputs/flutter-apk/app-release.apk`.
 La carpeta `dist/` no va en git: el APK se publica como adjunto del release.
 Los [releases](https://github.com/Chapi-creator/chasqui/releases) tienen las
 versiones anteriores.
-SHA-256: `f78e79156aabf49e03740c20d511022f084da5f5be77bb551d7148bee8fa0dfb`.
+SHA-256: `4a23bb32e576cef3562b798deefa0a23e7305372ea0e4308f229e436f9a2db31`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -451,6 +451,17 @@ marca que se manda con la linterna.
 - **Identificador nuevo**: `com.chasqui.chasqui`. Android lo trata como otra
   app, así que **no se actualiza encima de la SinRed instalada**: hay que
   desinstalar la vieja (o convivir con las dos, que también funciona).
+- **Lectura de morse mucho más fiable**: se reportaba que el SOS salía «SOT» y
+  «HOLA» salía «HOMA». La causa era el muestreador, no el alfabeto: exigía dos
+  fotogramas seguidos para creer un cambio de luz, así que con la cámara a 12-20
+  fotogramas por segundo una pausa de 120 ms entre dos puntos caía entera entre
+  dos fotogramas, no se reportaba, y los dos puntos se pegaban en una raya. Ahora
+  el cambio se acepta en el primer fotograma que cruza el umbral (la zona muerta
+  y la duración mínima siguen filtrando el ruido) y el instante del cambio se
+  **interpola** entre las dos muestras que lo cruzan, en vez de redondear al
+  fotograma entero. Medido en simulación con cámara a 30 por segundo: 15 de 15
+  mensajes correctos en los tres ritmos; con fotogramas perdidos y cámara lenta
+  (12 a 30 por segundo), 63 de 75 en lugar de 42.
 - **Lo que NO cambió, a propósito**: las cadenas `sinred/v1/mesh-message` y
   `sinred/v1/canal-todos` del cifrado y del canal abierto, y el UUID del
   servicio BLE. Son protocolo, no marca: si cambian, un teléfono con la versión
