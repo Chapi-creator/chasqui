@@ -487,7 +487,9 @@ test/                           protocolo, malla, energía y humo de UI
 
 1. Medir consumo real 8 h con la app en segundo plano y ajustar la tabla.
 2. Ratchet por conversación y ACK firmado.
-3. Puente LoRa (Heltec / T-Beam) como transporte adicional: ahí sí hay km.
+3. Puente LoRa (Heltec / T-Beam) como transporte adicional: ahí sí hay km. El
+   diseño está escrito en [`docs/LoRa.md`](docs/LoRa.md), con los límites de
+   tamaño y de tiempo de aire medidos: falta la placa y el código.
 4. Notas de voz por trozos, con el mismo mecanismo de las fotos.
 5. Fotos también en el canal "Todos" y en el tablero (hoy solo en chats 1 a 1).
 6. Descubrimiento por `service data` en el advertising para ahorrar el escaneo.
