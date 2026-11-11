@@ -386,6 +386,9 @@ sea. Dice qué es, para qué sirve y de dónde viene la idea, sin prometer de m�
 Para quien pregunte por qué el APK no viene de Play Store: está firmado con la
 clave de desarrollo de Flutter, es para probar y compartir, no para publicar.
 
+Las fichas para las tiendas —textos, ícono, gráfico y política de privacidad—
+están en [`docs/publicar/`](docs/publicar/LEEME.md).
+
 ## 6. Estructura del proyecto
 
 ```
