@@ -6,8 +6,11 @@
 
 Chat tipo WhatsApp que funciona **sin internet, sin operador y sin servidores**.
 Los teléfonos hablan entre sí por Bluetooth LE y se reenvían los mensajes unos a
-otros, formando una malla (igual que BitChat, pero con la radio encendida solo a
-ratos para no comerse la batería).
+otros, formando una malla. Está **inspirada en
+[bitchat](https://github.com/permissionlesstech/bitchat-android)**, la app de
+malla Bluetooth de Jack Dorsey que es de dominio público: la idea de la malla sin
+internet es de ellos, y este proyecto la lleva a Android con Flutter, en español
+y con la radio encendida solo a ratos para no comerse la batería.
 
 > Estado: **prototipo funcional (MVP)** para Android. APK release firmado con la
 > clave de debug, listo para instalar por sideload (no para Play Store).
@@ -124,7 +127,8 @@ Esto es importante antes de instalar:
 | ¿Sin nadie cerca? | No hay red en ese instante. El mensaje espera en la cola **24 h** y sale al aparecer alguien. |
 | ¿Funciona sin abrir la app? | Sí, con el servicio en primer plano activo (notificación permanente). |
 
-BitChat tiene exactamente la misma limitación física: BLE no llega más lejos.
+[bitchat](https://github.com/permissionlesstech/bitchat-android) tiene exactamente
+la misma limitación física: BLE no llega más lejos.
 La diferencia aquí es el presupuesto de radio, que hace que aguante todo el día.
 
 ### Cómo estirar el alcance de verdad
@@ -364,6 +368,23 @@ en un emulador, donde no hay radio BLE.
 Ajustes → **Compartir la app** abre la hoja de Android con el APK adjunto. Con
 Quick Share o Bluetooth pasa a otro teléfono sin datos ni Play Store: es la
 forma de que la app llegue a un barrio cuando la red ya no está.
+
+### Texto para compartirla
+
+Este es el mensaje que se puede copiar y mandar por WhatsApp, Telegram o donde
+sea. Dice qué es, para qué sirve y de dónde viene la idea, sin prometer de más:
+
+> Les comparto Chasqui, una app de mensajería por Bluetooth que hice para cuando
+> no hay internet ni señal: chat de texto entre varios teléfonos que se reenvían
+> los mensajes, y morse por linterna entre dos teléfonos. Está inspirada en
+> bitchat, la app de malla Bluetooth de Jack Dorsey. Es para Android 7 o
+> superior, gratis y sin cuentas.
+> https://github.com/Chapi-creator/chasqui/releases/latest
+> Si la prueban y algo falla, díganme qué teléfono usan y qué pasó; con eso la
+> arreglo.
+
+Para quien pregunte por qué el APK no viene de Play Store: está firmado con la
+clave de desarrollo de Flutter, es para probar y compartir, no para publicar.
 
 ## 6. Estructura del proyecto
 
@@ -860,3 +881,11 @@ Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),
 `battery_plus`, `provider`, `path_provider` (BSD-3 de Flutter/Dart). Los permisos
 se piden con código nativo del proyecto.
+
+**Crédito**: Chasqui está inspirada en [bitchat](https://bitchat.free/), la app
+de malla Bluetooth de Jack Dorsey y permissionlesstech, publicada en dominio
+público ([Android](https://github.com/permissionlesstech/bitchat-android),
+[iOS](https://github.com/permissionlesstech/bitchat)). De ahí viene la idea de
+hablar por Bluetooth sin servidores; Chasqui es una implementación aparte, en
+Flutter y en español, con las funciones de morse por linterna y el reparto de
+batería que bitchat no tiene.
