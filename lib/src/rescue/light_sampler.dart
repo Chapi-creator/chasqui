@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'light_calibration.dart';
 
 /// Un tramo de luz que acaba de terminar: encendido o apagado, y cuánto duró.
@@ -77,6 +79,16 @@ class LightSampler {
   /// Última diferencia entre lo más oscuro y lo más claro de la ventana.
   double _contrast = 0;
 
+  /// Últimos umbrales automáticos que se dieron por buenos. Se guardan para no
+  /// recalcularlos con ventanas donde lo único que hay es ruido.
+  double _autoOn = 0.6;
+  double _autoOff = 0.45;
+
+  /// Ancho mínimo de la zona muerta, en brillo. El ruido de la cámara mueve el
+  /// valor unos centésimos: si los dos umbrales quedan más juntos que esto, el
+  /// detector cambia de estado en cada fotograma.
+  static const double _minDeadBand = 0.06;
+
   bool get isOn => _on;
 
   /// Contraste que está viendo la cámara ahora. Si es bajo, no hay nada que
@@ -105,6 +117,8 @@ class LightSampler {
     _prevMs = 0;
     _hasPrev = false;
     _contrast = 0;
+    _autoOn = 0.6;
+    _autoOff = 0.45;
   }
 
   /// Agrega una muestra de brillo (0 = negro, 1 = blanco) con su marca de
@@ -128,23 +142,29 @@ class LightSampler {
     _contrast = high - low;
 
     // Con calibración los umbrales son absolutos y no dependen de la ventana.
-    // Sin ella, sin contraste todavía no se puede adaptar nada: pasa al
-    // principio, con la luz ya encendida, cuando la ventana solo tiene brillo.
-    // Ahí se usan umbrales fijos; en cuanto la luz se apaga aparece el
-    // contraste real y mandan los adaptativos.
+    // Sin ella se adaptan a lo que hay en la ventana, pero solo cuando ese
+    // rango es señal de verdad y no ruido de la cámara.
     final double turnOn;
     final double turnOff;
     final calibrated = _calibration;
     if (calibrated != null) {
       turnOn = calibrated.turnOn;
       turnOff = calibrated.turnOff;
-    } else if (_contrast < minRange) {
-      turnOn = 0.6;
-      turnOff = 0.45;
     } else {
-      final range = high - low;
-      turnOn = low + range * onRatio;
-      turnOff = low + range * offRatio;
+      // Con la luz quieta, dentro de la ventana no hay más que ruido de la
+      // cámara: unos centésimos de rango. Si se recalculan los umbrales con
+      // eso quedan tan pegados entre sí que cada fotograma cruza uno y el
+      // receptor inventa marcas (un SOS se leía HOS). Solo se recalculan
+      // cuando el rango es claramente más grande que el ruido; si no, valen
+      // los últimos umbrales buenos (o los de fábrica al empezar).
+      if (high - low >= minRange * 2.5) {
+        _autoOn = low + (high - low) * onRatio;
+        _autoOff = low + (high - low) * offRatio;
+      }
+      // Y la zona muerta nunca se achica más que el ancho mínimo: así el
+      // temblor de un solo fotograma no alcanza a cruzar los dos umbrales.
+      turnOn = _autoOn;
+      turnOff = math.min(_autoOff, _autoOn - _minDeadBand);
     }
 
     final wanted = _on ? value > turnOff : value > turnOn;

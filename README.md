@@ -315,7 +315,7 @@ listo para bajar tocando **Download**, sin compilar nada ni buscar más abajo.
 Ese archivo (`apk/Chasqui.apk`) se reemplaza en cada versión y siempre es la
 última; las viejas quedan en [Releases](https://github.com/Chapi-creator/chasqui/releases).
 
-APK listo para instalar: **`dist/Chasqui-1.1.1.apk`** (71,8 MB, todas las)
+APK listo para instalar: **`dist/Chasqui-1.1.2.apk`** (71,8 MB, todas las)
 arquitecturas; el escáner de QR con ML Kit es lo que lo engorda). También queda
 en `build/app/outputs/flutter-apk/app-release.apk`.
 
@@ -323,7 +323,7 @@ La carpeta `dist/` no va en git; el APK que sí está en el repo es
 `apk/Chasqui.apk`, y cada versión se publica además como adjunto del
 [release](https://github.com/Chapi-creator/chasqui/releases), donde quedan las
 anteriores.
-SHA-256: `e736c10ef3b35471eea3634f9c2d37b633e2daa1d8ea7a3bd70080547839824f`.
+SHA-256: `23957da4f0ab2780a0856b1bc916609f122d7c3de98a77af6d101cc7ebc54858`.
 Cópialo al teléfono e instálalo (permite "instalar apps desconocidas").
 Está firmado con la clave de debug de Flutter: sirve para probar, no para
 publicar en Play Store.
@@ -552,7 +552,30 @@ exacto, cámara con fotogramas irregulares y pérdidas, exposición lenta y ruid
 - **Prueba nueva** que fija lo medido: 49 lecturas correctas de 49 a 200 ms con
   15 por segundo, y otras 49 a 300 ms con 12 por segundo.
 
-## 12. Qué cambió en la 0.9.0
+## 12. Qué cambió en la 1.1.2
+
+QA completo del receptor de morse con 3.456 lecturas simuladas (8 mensajes × 3
+ritmos × 6 cadencias de cámara × temblor × fotogramas perdidos × exposición ×
+ruido). El informe está en [`docs/QA-morse.md`](docs/QA-morse.md).
+
+- **Fallo encontrado y corregido**: con la luz encendida y quieta, el ruido de
+  la cámara (≈0,05 de rango) era todo lo que había en la ventana del muestreador
+  y los umbrales adaptativos quedaban tan juntos que cada fotograma cruzaba uno.
+  Aparecía un destello falso al principio y el mensaje se leía mal **a cualquier
+  ritmo**: `SOS` salía `HOS`, `HOLA` salía `5OLA`. Ahora los umbrales solo se
+  recalculan cuando el rango es claramente mayor que el ruido, y la zona muerta
+  tiene un ancho mínimo de 0,06.
+- **Resultado**: de 74,5 % a **83,5 %** de lecturas perfectas en toda la matriz.
+  A 300 ms ya no falla ninguna lectura ni con 10 imágenes por segundo; a 200 ms
+  no falla ninguna desde 20, y aguanta 15 con 98 %.
+- **Ritmo rápido**: 91 % a 30 imágenes por segundo, 64 % a 20 y 35 % a 12. Es
+  límite físico de la cámara (un punto de 120 ms dura 1,4 fotogramas a 12 por
+  segundo), no del traductor.
+- **Pruebas nuevas**: matriz por bandas con pisos medidos, casos borde (sin luz,
+  ruido de sensor, mensajes largos, borrar y reanudar, 5.000 tramos, número) y
+  regresión del ruido. **282 pruebas** en verde.
+
+## 13. Qué cambió en la 0.9.0
 
 - **Calibrar el receptor**: un botón en la pantalla del receptor mide dos
   segundos el fondo y dos la luz, y guarda los umbrales de ese lugar. Es lo que
@@ -627,7 +650,7 @@ exacto, cámara con fotogramas irregulares y pérdidas, exposición lenta y ruid
   duraciones acierta el 100 % de los mensajes de prueba; con un 2 % de
   fotogramas perdidos, el 89-96 %.
 
-## 13. Qué cambió en la 0.7.1
+## 14. Qué cambió en la 0.7.1
 
 - **Icono nuevo de la app**: el lanzador, el icono redondo y el temático de
   Android 13+ pasan a ser el emblema de Telegrafía —punto, raya y punto sobre
@@ -640,7 +663,7 @@ exacto, cámara con fotogramas irregulares y pérdidas, exposición lenta y ruid
 - En esa versión el logo de la malla siguió en el arranque y en Ajustes; la
   1.0.0 lo reemplazó por el emblema.
 
-## 14. Qué cambió en la 0.7.0
+## 15. Qué cambió en la 0.7.0
 
 **Telegrafía**: el morse deja de ser solo el SOS y pasa a servir para cualquier
 mensaje.
@@ -674,7 +697,7 @@ repetición del mensaje con el mismo motor del SOS.
 Lo que sigue sin poder probarse sin teléfono: si el pitido se oye, si la
 linterna alumbra y si el brillo alcanza al sol.
 
-## 15. Qué cambió en la 0.6.0
+## 16. Qué cambió en la 0.6.0
 
 El teléfono como herramienta de rescate, sin radio de por medio:
 
@@ -708,7 +731,7 @@ El teléfono como herramienta de rescate, sin radio de por medio:
 Lo que no se puede probar sin un teléfono es la parte física: si la linterna
 alumbra, si la sirena suena fuerte y si el brillo forzado alcanza al sol.
 
-## 16. Qué cambió en la 0.5.5
+## 17. Qué cambió en la 0.5.5
 
 Identidad visual, sin tocar el funcionamiento de la malla:
 
@@ -723,7 +746,7 @@ Identidad visual, sin tocar el funcionamiento de la malla:
   blanco, también en Android 12+ (`windowSplashScreenBackground`).
 - El logo aparece en Ajustes, sobre la versión, y en este README.
 
-## 17. Qué cambió en la 0.5.4
+## 18. Qué cambió en la 0.5.4
 
 Todo para que la app gaste lo mínimo cuando la energía es el problema:
 
@@ -751,7 +774,7 @@ Todo para que la app gaste lo mínimo cuando la energía es el problema:
 Lo que no cambia: la app no puede medir su consumo real sin un teléfono, así
 que las horas de autonomía sigues siendo estimaciones de diseño.
 
-## 18. Qué cambió en la 0.5.3
+## 19. Qué cambió en la 0.5.3
 
 **Tablero de emergencia**, la información que se necesita después de un sismo o
 una inundación, ordenada para que sirva en vez de estorbar:
@@ -776,7 +799,7 @@ una inundación, ordenada para que sirva en vez de estorbar:
   de interfaz en `test/board_widget_test.dart` (se dibuja, se abre el formulario
   y se publica de verdad). Total: **119 pruebas**.
 
-## 19. Qué cambió en la 0.5.2
+## 20. Qué cambió en la 0.5.2
 
 Más alcance real, sin hardware nuevo:
 
@@ -798,7 +821,7 @@ Más alcance real, sin hardware nuevo:
 Lo que **no** cambia: la distancia de un salto sigue siendo la de la radio
 (10–30 m en interior, hasta 100 m a la vista). Para kilómetros hace falta LoRa.
 
-## 20. Qué cambió en la 0.5.1
+## 21. Qué cambió en la 0.5.1
 
 Repaso de errores reales de la 0.5.0, con su prueba de regresión cuando se
 podía reproducir sin teléfono:
@@ -831,7 +854,7 @@ podía reproducir sin teléfono:
 - Los avatares cortan por **grafemas**: un nombre que empieza con emoji ya no
   deja medio carácter. El diálogo de cambiar nombre libera su controlador.
 
-## 21. Licencia
+## 22. Licencia
 
 Código del proyecto: MIT. Dependencias: `bluetooth_low_energy` (MIT),
 `cryptography` (Apache-2.0), `mobile_scanner` y `qr_flutter` (BSD-3),

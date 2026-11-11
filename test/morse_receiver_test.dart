@@ -267,6 +267,25 @@ void main() {
       expect(transitions, isEmpty);
     });
 
+    test('con la luz quieta y ruido de cámara no inventa marcas', () {
+      // Con la linterna fija, el ruido de la imagen (±5 %) es todo el rango de
+      // la ventana. Antes los umbrales adaptativos quedaban tan pegados que
+      // cada fotograma cruzaba uno y el receptor veía un destello de más al
+      // empezar: SOS se leía HOS y HOLA se leía 5OLA, con cualquier cadencia.
+      final random = math.Random(3);
+      final values = <double>[
+        for (var i = 0; i < 40; i++)
+          (1 + (random.nextDouble() - 0.5) * 0.10).clamp(0.0, 1.0),
+        ...List.filled(20, 0.05),
+      ];
+      final transitions = run(values);
+      // Un solo tramo, el de luz que se apaga al final: si el ruido hubiera
+      // cruzado los umbrales, aparecerían pausas cortas en el medio.
+      expect(transitions.length, 1);
+      expect(transitions.single.on, isTrue);
+      expect(transitions.single.ms, inInclusiveRange(950, 1050));
+    });
+
     test('un destello más corto que un parpadeo de cámara se descarta', () {
       final values = <double>[
         ...List.filled(20, 0.05),
